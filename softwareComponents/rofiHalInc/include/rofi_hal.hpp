@@ -2,7 +2,7 @@
 #include <functional>
 #include <memory>
 
-#include "networking.hpp"
+#include "lwip++.hpp"
 
 namespace rofi::hal {
 
