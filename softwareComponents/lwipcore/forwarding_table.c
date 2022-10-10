@@ -142,7 +142,7 @@ int ip_add_route(const ip6_addr_t* addr, uint8_t mask, const char* netif_name) {
 
 struct netif* ip_find_route(const ip6_addr_t* ip, const ip6_addr_t* src) {
 	struct rt_entry* entry = ip_find_route_entry(ip);
-	return entry && !ip6_addr_isany_val(*src) ? netif_find(entry->gw_name) : NULL;
+	return entry && (src == NULL || !ip6_addr_isany_val(*src)) ? netif_find(entry->gw_name) : NULL;
 }
 
 const ip6_addr_t* ip_find_gw(struct netif* netif, const ip6_addr_t* dest) {
@@ -189,8 +189,8 @@ int ip_rm_route_if(const char* netif_name) {
 	while (index >= 0 && index < fw_table_size) {
         if (strcmp(netif_name, fw_table[index].gw_name) == 0) {
             remove_at(index);
-            --index;
         }
+        --index;
     }
 
 	return size != fw_table_size ? 1 : 0;
@@ -208,3 +208,5 @@ void ip_update_route(const ip6_addr_t* ip, uint8_t mask, const char* new_gw) {
 		i++;
 	}
 }
+
+void ip_clear() { fw_table_size = 0; }
