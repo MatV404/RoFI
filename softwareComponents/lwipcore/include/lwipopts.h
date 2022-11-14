@@ -63,8 +63,8 @@
 #define LWIP_ACD                  0
 
 /* change if needed */
-#define MEM_LIBC_MALLOC           1
-#define MEMP_MEM_MALLOC           1
+#define MEM_LIBC_MALLOC           0
+#define MEMP_MEM_MALLOC           0
 
 #define IPV6_FRAG_COPYHEADER      1
 #define LWIP_MULTICAST_TX_OPTIONS 1
