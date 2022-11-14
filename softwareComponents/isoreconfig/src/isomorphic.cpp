@@ -58,4 +58,67 @@ Matrix centroid( const RofiWorld& rw )
     return pointToPos( centroid( decomposeRofiWorld( rw )[0] ));
 }
 
+
+Positions cloudToPositions( const Cloud& cop )
+{
+    Positions result;
+    for ( const Point& p : cop ) result.push_back( pointToPos( p ) );
+    return result;
+}
+
+Cloud positionsToCloud( const Positions& poss )
+{
+    Cloud result;
+    for ( const Matrix& pos : poss ) result.push_back( posToPoint( pos ) );
+    return result;
+}
+
+bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2, bool normalize )
+{
+    auto comparePoints = [&]( const Point& p1, const Point& p2 ) 
+        { return p1(0) < p2(0) || ((p1(0) == p2(0) && p1(1) < p2(1)) || (p1(0) == p2(0) && p1(1) == p2(1) && p1(2) < p2(2))); };
+
+    std::array< Positions, 2 > positions1 = decomposeRofiWorld( rw1 );
+    std::array< Positions, 2 > positions2 = decomposeRofiWorld( rw2 );
+
+    // Cloud cop1 = positionsToCloud( positions1[0] );
+    // Cloud cop2 = positionsToCloud( positions2[0] );
+
+    // std::cout << "cop1:\n";
+    // cloudToScore( cop1 ).print();
+
+    // std::cout << "cop2:\n";
+    // cloudToScore( cop2 ).print();
+
+    // std::sort( cop1.begin(), cop1.end(), comparePoints );
+    // std::sort( cop2.begin(), cop2.end(), comparePoints );
+
+    // std::cout << "cop1:\n";
+    // cloudToScore( cop1 ).print();
+
+    // std::cout << "cop2:\n";
+    // cloudToScore( cop2 ).print();
+
+    // Merge module points and connection points into one cloud
+    for ( const Matrix& pos : positions1[1] )
+        positions1[0].push_back( pos );
+    for ( const Matrix& pos : positions2[1] )
+        positions2[0].push_back( pos );
+
+    // cop1 = positionsToCloud( positions1[0] );
+    // cop2 = positionsToCloud( positions2[0] );
+
+    // std::sort( cop1.begin(), cop1.end(), comparePoints );
+    // std::sort( cop2.begin(), cop2.end(), comparePoints );
+
+    // std::cout << "cop1:\n";
+    // cloudToScore( cop1 ).print();
+
+    // std::cout << "cop2:\n";
+    // cloudToScore( cop2 ).print();
+
+    return isometric( positionsToCloud( positions1[0] ), positionsToCloud( positions2[0] ), normalize );
+}
+
+
 } // namespace rofi::isoreconfig

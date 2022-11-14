@@ -43,4 +43,9 @@ std::array< Positions, 2 > decomposeRofiWorld( const rofi::configuration::RofiWo
  */
 Matrix centroid( const rofi::configuration::RofiWorld& rw );
 
+bool equalShape( 
+    const rofi::configuration::RofiWorld& rw1, 
+    const rofi::configuration::RofiWorld& rw2, 
+    bool normalize = false );
+
 } // namespace rofi::isoreconfig

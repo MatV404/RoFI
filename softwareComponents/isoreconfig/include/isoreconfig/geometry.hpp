@@ -45,7 +45,7 @@ Point centroid( const Cloud& cop );
  * @brief Calculate the centroid (unweighted average) 
  * of a given vector of positions.
  * Assumes the vector is not empty.
- * @param positions Vector to calculate the center of gravity from.
+ * @param positions Vector to calculate the centroid from.
  * @return Unweighted average (centroid) of a given vector <positions>.
  */
 Point centroid( const std::vector< Matrix >& positions );
@@ -65,8 +65,8 @@ std::array< Cloud, 2 > longestVectors(
     const double epsilon = ERROR_MARGIN );
 
 /**
- * @brief Finds points furthest and second furthest away from the center of
- * gravity of <cop> in <cop>.
+ * @brief Finds points furthest and second furthest away from the centroid
+ * of <cop> in <cop>.
  * @param cop Cloud of points to go through.
  * @param epsilon Maximum distance two points can be apart to be considered
  * the same point.
@@ -75,5 +75,9 @@ std::array< Cloud, 2 > longestVectors(
  */
 std::array< Cloud, 2 > longestVectors( 
     const Cloud& cop, const double epsilon = ERROR_MARGIN );
+
+bool isometric( Cloud cop1, Cloud cop2, bool normalize = true );
+
+arma::mat cloudToScore( const Cloud& cop );
 
 } // namespace rofi::isoreconfig
