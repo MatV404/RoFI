@@ -21,9 +21,23 @@ void saveToFile( const RofiWorld& bot, const std::string& path )
 {
     auto jason = serialization::toJSON( bot );
     std::ofstream out(path);
-    // std::cout << jason.dump();
+    // std::cout << jason.dump() << "\n";
     out << jason.dump();
     out.close();
+}
+
+bool withinBounds( const std::span< float >& values, 
+    const std::span< const std::pair< float, float > >& bounds )
+{
+    auto valIt = values.begin();
+    for ( auto[low, high] : bounds )
+    {
+        if ( *valIt < low || high < *valIt ) 
+            return false;
+        ++valIt;
+    }
+
+    return true;
 }
 
 class VisitedShapes
@@ -35,17 +49,17 @@ public:
 
     bool contains( const RofiWorld& bot ) const
     {
-        std::stringstream path;
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/bot.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( bot, path.str() );
+        // std::stringstream path;
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/bot.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( bot, path.str() );
 
         for ( const RofiWorld& found : _visited )
         {
-            path.str("");
-            path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/found.json";
-            std::cout << "writing to " << path.str() << "\n";
-            saveToFile( found, path.str() );
+            // path.str("");
+            // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/found.json";
+            // std::cout << "writing to " << path.str() << "\n";
+            // saveToFile( found, path.str() );
 
             if ( equalConfig( found, bot ) ) 
                 return true;
@@ -112,10 +126,10 @@ std::vector< std::vector< float > > generateRotations( size_t dog, float step )
 std::vector< RofiWorld > getDescendants(
     const RofiWorld& current, float step, unsigned int bound ) 
 {
-    std::stringstream path;
-    path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-    std::cout << "writing to " << path.str() << "\n";
-    saveToFile( current, path.str() );
+    // std::stringstream path;
+    // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+    // std::cout << "writing to " << path.str() << "\n";
+    // saveToFile( current, path.str() );
 
     std::vector< RofiWorld > result;
 
@@ -179,47 +193,45 @@ std::vector< RofiWorld > getDescendants(
             std::get<4>( conn ) );
         assert( current.isPrepared() );
         
-        bool consistent = true;
-        try { newBot.prepare(); } catch( std::runtime_error& e ) { consistent = false; }
-        if ( consistent ) result.push_back( newBot );
+        if ( newBot.prepare().has_value() && newBot.isValid() )
+            result.push_back( newBot );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/newBot.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( newBot, path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/newBot.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( newBot, path.str() );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( current, path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( current, path.str() );
     }
 
     // generate new rofibots by disconnecting possible roficoms
     auto allConnects = current.roficomConnections();
     for ( auto start = allConnects.begin(); start != allConnects.end(); ++start )
     {
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( current, path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( current, path.str() );
 
         RofiWorld newBot = current;
         newBot.disconnect( start.get_handle() );
         assert( current.isPrepared() );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/newBot.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( newBot, path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/newBot.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( newBot, path.str() );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( current, path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( current, path.str() );
 
-        bool consistent = true;
-        try { newBot.prepare(); } catch( std::runtime_error& ) { consistent = false; }
-        if ( consistent ) result.push_back( newBot );
+        if ( newBot.prepare().has_value() && newBot.isValid() )
+            result.push_back( newBot );
     }
 
     // Turn TODO
@@ -227,47 +239,53 @@ std::vector< RofiWorld > getDescendants(
     {
         for ( size_t j = 0; j < modInf.module->joints().size(); ++j )
         {
+            auto& currJoint = modInf.module->joints()[j].joint;
             // TODO generate rotations for all reocurring dogs in advance
-            for ( auto& possRot : generateRotations( modInf.module->joints()[j].joint->positions().size(), step ) )
+            for ( auto& possRot : generateRotations( currJoint->positions().size(), step ) )
             {
-                path.str("");
-                path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-                std::cout << "writing to " << path.str() << "\n";
-                saveToFile( current, path.str() );
+                // Skip rotations which do not respect joint bounds 
+                // if ( !withinBounds( possRot, currJoint->jointLimits() ) ) continue;
+                
+                // path.str("");
+                // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+                // std::cout << "writing to " << path.str() << "\n";
+                // saveToFile( current, path.str() );
 
                 RofiWorld newBot = current;
                 // Shouldnt work - is const
-                newBot.getModule(  modInf.module->getId() )->joints()[j].joint->changePositions( possRot );
+                // newBot.getModule(  modInf.module->getId() )->joints()[j].joint->changePositions( possRot );
+                // Skip rotation if it does not respect joint bounds
+                if ( !newBot.getModule(  modInf.module->getId() )->changeJointPositionsBy( j, possRot ).has_value() )
+                    continue;
                 assert( current.isPrepared() );
 
-                path.str("");
-                path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/newBot.json";
-                std::cout << "writing to " << path.str() << "\n";
-                saveToFile( newBot, path.str() );
+                // path.str("");
+                // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/newBot.json";
+                // std::cout << "writing to " << path.str() << "\n";
+                // saveToFile( newBot, path.str() );
 
-                path.str("");
-                path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-                std::cout << "writing to " << path.str() << "\n";
-                saveToFile( current, path.str() );
+                // path.str("");
+                // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+                // std::cout << "writing to " << path.str() << "\n";
+                // saveToFile( current, path.str() );
 
-                bool consistent = true;
-                try { newBot.prepare(); } catch( std::runtime_error& ) { consistent = false; }
-                if ( consistent ) result.push_back( newBot );
+                if ( newBot.prepare().has_value() && newBot.isValid() )
+                    result.push_back( newBot );
             }
         }
     }
     for ( size_t i = 0; i < result.size(); ++i )
     {
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/" << i << ".json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( result[i], path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/" << i << ".json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( result[i], path.str() );
     }
 
-    path.str("");
-    path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
-    std::cout << "writing to " << path.str() << "\n";
-    saveToFile( current, path.str() );
+    // path.str("");
+    // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/parent.json";
+    // std::cout << "writing to " << path.str() << "\n";
+    // saveToFile( current, path.str() );
 
     return result;
 }
@@ -311,6 +329,10 @@ std::vector<RofiWorld> bfsShapes(
 
     VisitedId startId = visited.insert( start );
     // reporter.onUpdateSeen( visited );
+    // std::stringstream path;
+    // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/ " + startId + ".json";
+    // std::cout << "writing to " << path.str() << "\n";
+    // saveToFile( start, path.str() );
 
     // Starting configuration has itself as predecessor
     // and distance of 0
@@ -328,6 +350,8 @@ std::vector<RofiWorld> bfsShapes(
     bfsQueue.push( startId );
     // reporter.onUpdateQueue( bfsQueue );
 
+    size_t currDis = 0;
+
     while ( !bfsQueue.empty() ) 
     {
         VisitedId current = bfsQueue.front();
@@ -335,30 +359,37 @@ std::vector<RofiWorld> bfsShapes(
         bfsQueue.pop();
         // reporter.onUpdateQueue( bfsQueue );
 
-        std::stringstream path;
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/start.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( start, path.str() );
+        if ( distance.find( current )->second != currDis )
+        {
+            assert( currDis == distance.find( current )->second - 1 );
+            ++currDis;
+            std::cout << "current distance: " << currDis << "\n";
+        }
+            
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/start.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( start, path.str() );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/visitedStart.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( visited[startId], path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/visitedStart.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( visited[startId], path.str() );
 
         assert( equalConfig( start, visited[startId] ) );
         assert( start.isPrepared() );
         std::vector< RofiWorld > descendants = getDescendants( visited[current], step, bound );
         assert( start.isPrepared() );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/start.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( start, path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/start.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( start, path.str() );
 
-        path.str("");
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/visitedStart.json";
-        std::cout << "writing to " << path.str() << "\n";
-        saveToFile( visited[startId], path.str() );
+        // path.str("");
+        // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/visitedStart.json";
+        // std::cout << "writing to " << path.str() << "\n";
+        // saveToFile( visited[startId], path.str() );
 
         assert( equalConfig( start, visited[startId] ) );
 
@@ -387,6 +418,12 @@ std::vector<RofiWorld> bfsShapes(
             if ( visited.contains( child ) ) continue;
 
             VisitedId childId = visited.insert( child );
+
+            // path.str("");
+            // path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsDesc/" + childId + ".json";
+            // std::cout << "writing to " << path.str() << "\n";
+            // saveToFile( child, path.str() );
+
             // reporter.onUpdateSeen( visitedChild );
             predecessor.insert({ childId, current });
             // reporter.onUpdatePredecessors(predecessor);

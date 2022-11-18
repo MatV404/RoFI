@@ -217,11 +217,11 @@ bool isometric( Cloud cop1, Cloud cop2, bool normalize )
         std::sort( cop1.begin(), cop1.end(), comparePoints );
         std::sort( cop2.begin(), cop2.end(), comparePoints );
 
-        std::cout << "cop1:\n";
-        cloudToScore( cop1 ).print();
+        // std::cout << "cop1:\n";
+        // cloudToScore( cop1 ).print();
 
-        std::cout << "cop2:\n";
-        cloudToScore( cop2 ).print();
+        // std::cout << "cop2:\n";
+        // cloudToScore( cop2 ).print();
 
         // Clouds sorted by elements should map one-to-one with some tolerance
         if ( equalClouds( cop1, cop2 ) )

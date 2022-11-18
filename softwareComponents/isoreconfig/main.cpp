@@ -11,7 +11,7 @@
 using namespace rofi::configuration;
 using namespace rofi::isoreconfig;
 
-RofiWorld parseRofiWorld( const char* path )
+RofiWorld parseRofiWorld( const std::string& path )
 {
     std::ifstream inputTarget;
     inputTarget.open( path );
@@ -24,7 +24,7 @@ RofiWorld parseRofiWorld( const char* path )
     
     const auto identity = arma::mat(4, 4, arma::fill::eye);
     connect< RigidJoint >( result.getModule(0)->bodies()[ 0 ], { 0, 0, 0 }, identity );
-    result.prepare();
+    result.prepare().get_or_throw_as< std::runtime_error >();
 
     return result;
 }
@@ -33,84 +33,14 @@ void saveToFile( const RofiWorld& world, const std::string& path )
 {
     auto jason = serialization::toJSON( world );
     std::ofstream out(path);
-    std::cout << jason.dump();
+    std::cout << jason.dump() << "\n";
     out << jason.dump();
     out.close();
 }
 
-void testOne90()
-{
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/B1.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/C1.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/D1.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/E1.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/F1.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/G1.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/H1.in" ) 
-    ));
-}
+void testOne90();
 
-int main(int /*argc*/, char** /*argv[]*/) 
+int main(int argc, char** argv) 
 {
     RofiWorld world;
     // add universal module with id 42 in the default state
@@ -123,7 +53,7 @@ int main(int /*argc*/, char** /*argv[]*/)
     // fix the position of the `shoe A` in { 0, 0, 0 }
     const auto identity = arma::mat(4, 4, arma::fill::eye);
     connect< RigidJoint >( m1.bodies()[ 0 ], { 0, 0, 0 }, identity );
-    world.prepare();
+    world.prepare().get_or_throw_as< std::runtime_error >();;
     decomposeRofiWorld( world );
 
     RofiWorld world1, world2;
@@ -133,8 +63,8 @@ int main(int /*argc*/, char** /*argv[]*/)
     m2 = world2.insert( UniversalModule( 66, 0_deg, 45_deg, 0_deg ) );
     connect< RigidJoint >( m2.bodies()[ 0 ], { 0, 0, 0 }, identity );
 
-    world1.prepare();
-    world2.prepare();
+    world1.prepare().get_or_throw_as< std::runtime_error >();;
+    world2.prepare().get_or_throw_as< std::runtime_error >();;
 
     assert( equalShape( world1, world2 ) );
 
@@ -160,15 +90,22 @@ int main(int /*argc*/, char** /*argv[]*/)
 
     // Test BFS with shapes
 
+    Dim::Cli cli;
+    auto & startPath = cli.opt<std::string>("start", "./start.in").desc("Starting configuration in valid format");
+    auto & targetPath = cli.opt<std::string>("target", "./target.in").desc("Target configuration in valid format");
+    auto & step = cli.opt<int>("step", 90).desc("Degree of rotation for 1 step");
+    if (!cli.parse(argc, argv))
+        return cli.printError(std::cerr); // prints error and returns cli.exitCode()
+
     std::vector< RofiWorld > result = bfsShapes( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ),
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/B1.in" ),
-        (90_deg).rad(), 1 );
+        parseRofiWorld( *startPath ),
+        parseRofiWorld( *targetPath ),
+        Angle::deg( *step ).rad(), 1 );
 
     for ( size_t i = 0; i < result.size(); ++i )
     {
         std::stringstream path;
-        path << "bfsResult/" << i << ".in";
+        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsResult/" << i << ".json";
         std::cout << "writing to: " << path.str() << "\n";
         saveToFile( result[i], path.str() );
     }
@@ -247,4 +184,76 @@ int main(int /*argc*/, char** /*argv[]*/)
 
     std::cout << seen.size() << "\n"; */
 
+}
+
+void testOne90()
+{
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A2.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A3.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
+    ));
+    assert( equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A4.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/B1.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/C1.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/D1.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/E1.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/F1.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/G1.in" ) 
+    ));
+    assert( !equalShape( 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/A1.in" ), 
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/H1.in" ) 
+    ));
 }
