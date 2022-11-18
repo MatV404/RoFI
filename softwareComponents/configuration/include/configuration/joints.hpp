@@ -58,7 +58,11 @@ struct Joint: public atoms::VisitableBase< Joint, JointVisitor > {
      * @throws std::logic_error if the given settings do not respect joint limits.
      */
     void setPositions( std::span< const float > pos ) {
+<<<<<<< HEAD
         assert( pos.size() == _positions.size() && "Incorrect number of parameters to set" );
+=======
+        assert( pos.size() == _positions.size() && "Insufficient number of parameters to set" );
+>>>>>>> 86393211 (configuration: Check joint limits when setting positions)
 
         size_t pId = 0;
         for ( auto[low, high] : _jointLimits )
@@ -76,6 +80,7 @@ struct Joint: public atoms::VisitableBase< Joint, JointVisitor > {
     /**
      * @brief Changes each joint setting by the corresponding value in <diff>.
      * 
+<<<<<<< HEAD
      * Assumes there are exactly as many values given as there are joint settings.
      * 
      * @return result error if the resulting values do not respect joint limits.
@@ -102,6 +107,31 @@ struct Joint: public atoms::VisitableBase< Joint, JointVisitor > {
 
         assert( _positions.size() == newParams.size() );
         std::swap( _positions, newParams );
+=======
+     * Assumes there are exactly as many values as there are joint settings.
+     * 
+     * @return result error if the resulting values do not respect joint limits.
+     */
+    atoms::Result< std::monostate > changePositionsBy( std::span< float > diff )
+    {
+        assert( diff.size() == _positions.size() && "Insufficient number of parameters to set" );
+
+        // Add up current parameter values with diff
+        std::transform( diff.begin(), diff.end(), _positions.begin(), diff.begin(),
+            []( float current, float difference ){ return current + difference; } );
+
+        size_t newParamId = 0;
+        for ( auto[low, high] : _jointLimits )
+        {
+            if ( diff[newParamId] < low || high < diff[newParamId] ) 
+                return atoms::result_error< std::string >( 
+                    fmt::format( "Parameter at index {} with value {} added to current value {} is not within limit [{}, {}]", 
+                    newParamId, diff[newParamId], _positions[newParamId], low, high ) );
+            ++newParamId;
+        }
+        
+        std::copy( diff.begin(), diff.end(), _positions.begin() );
+>>>>>>> 86393211 (configuration: Check joint limits when setting positions)
 
         return atoms::result_value( std::monostate() );
     }
