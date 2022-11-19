@@ -209,13 +209,17 @@ bool isometric( Cloud cop1, Cloud cop2, bool normalize )
     // std::sort( cop2.begin(), cop2.end(), comparePoints );
 
     // Try all mirrored coordinate systems (for symmetric shapes)
-    for ( const Point& trans : std::vector< Point >({ { 1, 1, 1 }, { -1, 1, 1 }, { 1, -1, 1 }, { 1, 1, -1 }, { -1, -1, 1 }, { -1, 1, -1 }, { 1, -1, -1 }, { -1, -1, -1 } }))
+    for ( const Point& trans : std::vector< Point >({ 
+        { 1, 1, 1 }, { -1, 1, 1 }, 
+        { 1, -1, 1 }, { 1, 1, -1 }, 
+        { -1, -1, 1 }, { -1, 1, -1 }, 
+        { 1, -1, -1 }, { -1, -1, -1 } }))
     {
         for ( Point& p : cop1 ) for ( int i = 0; i < 3; ++i ) p(i) *= trans(i);
         // std::for_each( cop1.begin(), cop1.end(), ceilPoint );
         
-        std::sort( cop1.begin(), cop1.end(), comparePoints );
-        std::sort( cop2.begin(), cop2.end(), comparePoints );
+        // std::sort( cop1.begin(), cop1.end(), comparePoints );
+        // std::sort( cop2.begin(), cop2.end(), comparePoints );
 
         // std::cout << "cop1:\n";
         // cloudToScore( cop1 ).print();
@@ -223,7 +227,7 @@ bool isometric( Cloud cop1, Cloud cop2, bool normalize )
         // std::cout << "cop2:\n";
         // cloudToScore( cop2 ).print();
 
-        // Clouds sorted by elements should map one-to-one with some tolerance
+        // Both clouds should contain the same points (with some tolerance)
         if ( equalClouds( cop1, cop2 ) )
             return true;
     }
