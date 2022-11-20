@@ -1,5 +1,4 @@
 #include <isoreconfig/isomorphic.hpp>
-#include <isoreconfig/geometry.hpp>
 #include <cassert>
 
 namespace rofi::isoreconfig {
@@ -73,7 +72,7 @@ Cloud positionsToCloud( const Positions& poss )
     return result;
 }
 
-bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2, bool normalize )
+bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2 )
 {
     auto comparePoints = [&]( const Point& p1, const Point& p2 ) 
         { return p1(0) < p2(0) || ((p1(0) == p2(0) && p1(1) < p2(1)) || (p1(0) == p2(0) && p1(1) == p2(1) && p1(2) < p2(2))); };
@@ -117,7 +116,7 @@ bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2, bool normalize )
     // std::cout << "cop2:\n";
     // cloudToScore( cop2 ).print();
 
-    return isometric( positionsToCloud( positions1[0] ), positionsToCloud( positions2[0] ), normalize );
+    return isometric( positionsToCloud( positions1[0] ), positionsToCloud( positions2[0] ) );
 }
 
 

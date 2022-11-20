@@ -2,6 +2,27 @@
 
 namespace rofi::isoreconfig {
 
+Transformation rotate( double r, const Point &p )
+{
+    const int x = 0, y = 1, z = 2;
+    Transformation rotate = arma::eye(3,3);
+    auto cos_r = cos(r); auto sin_r = sin(r);
+
+    rotate(0,0) = cos_r + p(x) * p(x) * (1 - cos_r);
+    rotate(0,1) = p(x) * p(y) * (1 - cos_r) - p(z) * sin_r;
+    rotate(0,2) = p(x) * p(z) * (1 - cos_r) + p(y) * sin_r;
+
+    rotate(1,0) = p(x) * p(y) * (1 - cos_r) + p(z) * sin_r;
+    rotate(1,1) = cos_r + p(y) * p(y) * (1 - cos_r);
+    rotate(1,2) = p(y) * p(z) * (1 - cos_r) - p(x) * sin_r;
+
+    rotate(2,0) = p(z) * p(x) * (1 - cos_r) - p(y) * sin_r;
+    rotate(2,1) = p(z) * p(y) * (1 - cos_r) + p(x) * sin_r;
+    rotate(2,2) = cos_r + p(z) * p(z) * (1 - cos_r);
+
+    return rotate;
+}
+
 Matrix pointToPos( const Point& point )
 {
     Matrix result( arma::fill::eye );
@@ -27,13 +48,13 @@ Point centroid( const Cloud& cop )
     return result / Point( { pointCount, pointCount, pointCount } );
 }
 
-Point centroid( const std::vector< Matrix >& positions )
+Matrix centroid( const std::vector< Matrix >& positions )
 {
     Cloud cop;
     for ( const Matrix& pos : positions )
         cop.push_back( posToPoint( pos ) );
 
-    return centroid( cop );
+    return pointToPos( centroid( cop ) );
 }
 
 double cubeNorm( const Point& vec )
@@ -120,16 +141,6 @@ bool equalPoints( const Point& p1, const Point& p2 )
         && std::abs( p1(2) - p2(2) ) < ERROR_MARGIN;
 }
 
-// bool equalClouds( const Cloud& cloud1, const Cloud& cloud2 )
-// {   
-//     if ( cloud1.size() != cloud2.size() ) return false;
-
-//     for ( size_t i = 0; i < cloud1.size(); ++i ) 
-//         if ( !equalPoints( cloud1[i], cloud2[i] ) )
-//             return false;
-//     return true; 
-// }
-
 bool pointInCloud( const Point& p, const Cloud& cop )
 {
     for ( size_t i = 0; i < cop.size(); ++i ) 
@@ -152,15 +163,23 @@ bool equalClouds( const Cloud& cloud1, const Cloud& cloud2 )
     return true; 
 }
 
-bool isometric( Cloud cop1, Cloud cop2, bool normalize )
+// bool equalClouds( const Cloud& cloud1, const Cloud& cloud2 )
+// {   
+//     if ( cloud1.size() != cloud2.size() ) return false;
+
+//     for ( size_t i = 0; i < cloud1.size(); ++i ) 
+//         if ( !equalPoints( cloud1[i], cloud2[i] ) )
+//             return false;
+//     return true; 
+// }
+
+bool isometric( Cloud cop1, Cloud cop2, bool mirror )
 {
     if ( cop1.size() != cop2.size() ) return false;
 
-    if ( normalize )
-    {
-        cop1 = normalizeCloud( cop1 );
-        cop2 = normalizeCloud( cop2 );
-    }
+    // TODO Do we need to normalize or does PCA do it for us?
+    cop1 = normalizeCloud( cop1 );
+    cop2 = normalizeCloud( cop2 );
 
     // Sorting by value of elements
     auto comparePoints = [&]( const Point& p1, const Point& p2 ) 
@@ -183,8 +202,8 @@ bool isometric( Cloud cop1, Cloud cop2, bool normalize )
     //     { return cubeNorm( p1 ) < cubeNorm( p2 ); };
 
     arma::mat coeff1, coeff2; // principal component coefficients
-    arma::mat score1, score2; // projected data
-    arma::vec latent1, latent2; // eigenvalues of the covariance matrix of X
+    arma::mat score1, score2; // projected data - points in new coordinate system
+    arma::vec latent1, latent2; // eigenvalues of the covariance matrix of X - eigenvectors for PCA space
     arma::vec tsquared1, tsquared2; // Hotteling's statistic for each sample
 
     princomp( coeff1, score1, latent1, tsquared1, cloudToScore( cop1 ) );
@@ -193,44 +212,103 @@ bool isometric( Cloud cop1, Cloud cop2, bool normalize )
     cop1 = scoreToCloud( score1 );
     cop2 = scoreToCloud( score2 );
 
-    // std::cout << "score1:\n";
-    // score1.print();
-    // std::cout << "score2:\n";
-    // score2.print();
+    std::vector< Point > axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+    std::vector< double > half_space = { 0, M_PI };
+    std::vector< double > rotations = { 0, M_PI_2, M_PI, M_PI + M_PI_2 };
 
-    // Round to some precision
-    auto ceilPoint = [&]( Point& p )
-        { for ( int i = 0; i < 3; ++i ) p(i) = std::floor( p(i) / ERROR_MARGIN + 0.5 ) * ERROR_MARGIN; };
+    for ( size_t ax = 0; ax < axes.size(); ++ax )
+        for ( const auto& hp : half_space )
+            for ( const auto& alpha : rotations )
+            {
+                auto rot = rotate( hp, axes[ (ax + 1) % axes.size() ] ) * rotate( alpha, axes[ax] );
 
-    // std::for_each( cop1.begin(), cop1.end(), ceilPoint );
-    // std::for_each( cop2.begin(), cop2.end(), ceilPoint );
+                auto cop1transformed = cop1;
 
-    // Sort by size of coordinates - fixed reference cloud
-    // std::sort( cop2.begin(), cop2.end(), comparePoints );
+                for ( Point& p : cop1transformed ) p = rot * p;
 
-    // Try all mirrored coordinate systems (for symmetric shapes)
-    for ( const Point& trans : std::vector< Point >({ 
-        { 1, 1, 1 }, { -1, 1, 1 }, 
-        { 1, -1, 1 }, { 1, 1, -1 }, 
-        { -1, -1, 1 }, { -1, 1, -1 }, 
-        { 1, -1, -1 }, { -1, -1, -1 } }))
-    {
-        for ( Point& p : cop1 ) for ( int i = 0; i < 3; ++i ) p(i) *= trans(i);
-        // std::for_each( cop1.begin(), cop1.end(), ceilPoint );
-        
-        // std::sort( cop1.begin(), cop1.end(), comparePoints );
-        // std::sort( cop2.begin(), cop2.end(), comparePoints );
+                // std::cout << "score1:\n";
+                // score1.print();
+                // std::cout << "score2:\n";
+                // score2.print();
 
-        // std::cout << "cop1:\n";
-        // cloudToScore( cop1 ).print();
+                // Round to some precision
+                auto ceilPoint = [&]( Point& p )
+                    { for ( int i = 0; i < 3; ++i ) p(i) = std::floor( p(i) / ERROR_MARGIN + 0.5 ) * ERROR_MARGIN; };
 
-        // std::cout << "cop2:\n";
-        // cloudToScore( cop2 ).print();
+                // std::for_each( cop1.begin(), cop1.end(), ceilPoint );
+                // std::for_each( cop2.begin(), cop2.end(), ceilPoint );
 
-        // Both clouds should contain the same points (with some tolerance)
-        if ( equalClouds( cop1, cop2 ) )
-            return true;
-    }
+                // Try all mirrored coordinate systems (for symmetric shapes)
+                // for ( const Point& trans : std::vector< Point >({ 
+                //     { 1, 1, 1 }, /* { -1, 1, 1 }, */ 
+                //     /* { 1, -1, 1 }, { 1, 1, -1 },  */
+                //     { -1, -1, 1 }, { -1, 1, -1 }, 
+                //     { 1, -1, -1 }/* , { -1, -1, -1 } */ }))
+                // {
+                // auto cop1mirrored = cop1;
+                // for ( Point& p : cop1mirrored ) for ( int i = 0; i < 3; ++i ) p(i) *= trans(i);
+                // std::for_each( cop1.begin(), cop1.end(), ceilPoint );
+                
+                std::sort( cop1transformed.begin(), cop1transformed.end(), comparePoints );
+                std::sort( cop2.begin(), cop2.end(), comparePoints );
+
+                std::cout << "cop1:\n";
+                cloudToScore( cop1transformed ).print();
+
+                std::cout << "cop2:\n";
+                cloudToScore( cop2 ).print();
+
+                // Both clouds should contain the same points (with some tolerance)
+                if ( equalClouds( cop1transformed, cop2 ) )
+                    return true;
+                // }
+            }
+
+    // for ( const Point& rot : std::vector< Point >({ 
+    //         { 1, 1, 1 }, /* { -1, 1, 1 }, */ 
+    //         /* { 1, -1, 1 }, { 1, 1, -1 },  */
+    //         { -1, -1, 1 }, { -1, 1, -1 }, 
+    //         { 1, -1, -1 }/* , { -1, -1, -1 } */ }))
+    // {
+    //     auto cop1rotated = cop1;
+    //     for ( Point& p : cop1rotated ) for ( int i = 0; i < 3; ++i ) p(i) *= rot(i);
+
+    //     std::sort( cop1rotated.begin(), cop1rotated.end(), comparePoints );
+    //     std::sort( cop2.begin(), cop2.end(), comparePoints );
+
+    //     std::cout << "cop1rotated:\n";
+    //     cloudToScore( cop1rotated ).print();
+
+    //     std::cout << "cop2:\n";
+    //     cloudToScore( cop2 ).print();
+
+    //     if ( equalClouds( cop1rotated, cop2 ) )
+    //         return true;
+    // }
+
+    // if ( !mirror ) return false;
+
+    // for ( const Point& mirr : std::vector< Point >({ 
+    //         /* { 1, 1, 1 }, */{ -1, 1, 1 },  
+    //          { 1, -1, 1 }, { 1, 1, -1 },  
+    //         /* { -1, -1, 1 }, { -1, 1, -1 },  */
+    //         /*{ 1, -1, -1 } , */{ -1, -1, -1 }  }))
+    // {
+    //     auto cop1mirrored = cop1;
+    //     for ( Point& p : cop1mirrored ) for ( int i = 0; i < 3; ++i ) p(i) *= mirr(i);
+
+    //     std::sort( cop1mirrored.begin(), cop1mirrored.end(), comparePoints );
+    //     std::sort( cop2.begin(), cop2.end(), comparePoints );
+
+    //     std::cout << "cop1mirrored:\n";
+    //     cloudToScore( cop1mirrored ).print();
+
+    //     std::cout << "cop2:\n";
+    //     cloudToScore( cop2 ).print();
+
+    //     if ( isometric( cop1mirrored, cop2, false ) )
+    //         return true;
+    // }
 
     // comparing matrices
     // arma::approx_equal( score1, score2, "absdiff", ERROR_MARGIN );

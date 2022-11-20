@@ -17,6 +17,10 @@ using Point = arma::vec3;
  */
 using Cloud = std::vector< Point >;
 /**
+ * @brief Point transformation matrix
+ */
+using Transformation = arma::mat33;
+/**
  * @brief "Position" (4x4 matrix)
  */
 using Matrix = arma::mat44;
@@ -48,7 +52,7 @@ Point centroid( const Cloud& cop );
  * @param positions Vector to calculate the centroid from.
  * @return Unweighted average (centroid) of a given vector <positions>.
  */
-Point centroid( const std::vector< Matrix >& positions );
+Matrix centroid( const std::vector< Matrix >& positions );
 
 /**
  * @brief Finds points furthest and second furthest away from <centerPos> 
@@ -76,8 +80,10 @@ std::array< Cloud, 2 > longestVectors(
 std::array< Cloud, 2 > longestVectors( 
     const Cloud& cop, const double epsilon = ERROR_MARGIN );
 
-bool isometric( Cloud cop1, Cloud cop2, bool normalize = true );
+bool isometric( Cloud cop1, Cloud cop2, bool mirror = true );
 
 arma::mat cloudToScore( const Cloud& cop );
+Cloud normalizeCloud( const Cloud& cop );
+Cloud scoreToCloud( const arma::mat& score );
 
 } // namespace rofi::isoreconfig

@@ -39,7 +39,7 @@ bool withinBounds( const std::span< float >& values,
 
 bool equalConfig( const RofiWorld& bot1, const RofiWorld& bot2 )
 {
-    return equalShape( bot1, bot2, true );
+    return equalShape( bot1, bot2 );
 }
 
 void generateParametersRec( std::vector< std::vector< float > >& result, std::vector< float >& current,

@@ -1,4 +1,5 @@
 #include <configuration/rofiworld.hpp>
+#include <isoreconfig/geometry.hpp>
 
 namespace rofi::isoreconfig {
 
@@ -45,7 +46,9 @@ Matrix centroid( const rofi::configuration::RofiWorld& rw );
 
 bool equalShape( 
     const rofi::configuration::RofiWorld& rw1, 
-    const rofi::configuration::RofiWorld& rw2, 
-    bool normalize = false );
+    const rofi::configuration::RofiWorld& rw2 );
+
+Cloud positionsToCloud( const Positions& poss );
+Positions cloudToPositions( const Cloud& cop );
 
 } // namespace rofi::isoreconfig
