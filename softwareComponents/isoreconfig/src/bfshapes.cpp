@@ -2,7 +2,7 @@
 #include <queue>
 
 #include <isoreconfig/isomorphic.hpp>
-#include <isoreconfig/isoreconfig.hpp>
+#include <isoreconfig/bfshapes.hpp>
 #include <configuration/serialization.hpp>
 
 using VisitedId = size_t;
@@ -10,13 +10,9 @@ using VisitedId = size_t;
 namespace rofi::isoreconfig {
 
 using namespace rofi::configuration;
+using Predecessors = std::unordered_map< VisitedId, VisitedId >;
 
-
-bool equalConfig( const RofiWorld& bot1, const RofiWorld& bot2 )
-{
-    return equalShape( bot1, bot2, true );
-}
-
+// Auxiliary functions
 void saveToFile( const RofiWorld& bot, const std::string& path )
 {
     auto jason = serialization::toJSON( bot );
@@ -39,50 +35,12 @@ bool withinBounds( const std::span< float >& values,
 
     return true;
 }
+// end Auxiliary functions
 
-class Shapes
+bool equalConfig( const RofiWorld& bot1, const RofiWorld& bot2 )
 {
-    std::vector< RofiWorld > _visited;
-
-public:
-    Shapes() = default;
-
-    bool contains( const RofiWorld& bot ) const
-    {
-        for ( const RofiWorld& found : _visited )
-            if ( equalConfig( found, bot ) ) 
-                return true;
-            
-        return false;
-    }
-
-    auto find( const RofiWorld& bot )
-    {
-        return find_if( _visited.begin(), _visited.end(), 
-            [&]( const RofiWorld& found ){ return equalConfig( found, bot ); } );
-    }
-
-    VisitedId insert( const RofiWorld& bot )
-    {
-        _visited.push_back( bot );
-        return _visited.size() - 1;
-    }
-
-    RofiWorld& operator[]( size_t i )
-    {
-        return _visited[i];
-    }
-
-    const RofiWorld& operator[]( size_t i ) const
-    {
-        return _visited[i];
-    }
-
-    size_t size() const
-    {
-        return _visited.size();
-    }
-};
+    return equalShape( bot1, bot2, true );
+}
 
 void generateParametersRec( std::vector< std::vector< float > >& result, std::vector< float >& current,
      const std::array< float, 3 >& possChange, size_t toBeAdded )
@@ -117,7 +75,7 @@ std::vector< std::vector< float > > generateParameters( size_t dog, float step )
 // Get possible configurations made from the current one
 // "1 step" away, (TODO ignoring configurations of identical classes?)
 std::vector< RofiWorld > getDescendants(
-    const RofiWorld& current, float step, unsigned int bound ) 
+    const RofiWorld& current, float step, size_t bound ) 
 {
     std::vector< RofiWorld > result;
 
@@ -232,7 +190,7 @@ std::vector< RofiWorld > getDescendants(
 // Make a vector of predecessors of target configuration from map of predecessors
 // Assume target is reachable from start in predecessors map
 std::vector< RofiWorld > getPredecessors( const Shapes& visited,
-    std::unordered_map< VisitedId, VisitedId >& predecessor, 
+    Predecessors& predecessor, 
     VisitedId target, VisitedId start )
 {
     assert( predecessor.contains( start ) );
@@ -254,89 +212,67 @@ std::vector< RofiWorld > getPredecessors( const Shapes& visited,
     return result;
 } 
 
-// Assume target is reachable from start (same number of (only) **universal** modules)
-// using only rotations given by <step>
+// Assume start and target consist only of **universal** modules
 std::vector<RofiWorld> bfsShapes(
     const RofiWorld& start, const RofiWorld& target,
-    float step, unsigned int bound/*, BFSReporter& reporter*/ )
+    float step, size_t bound, Reporter& rep )
 {
     Shapes visited;
-    
-    std::unordered_map< VisitedId, VisitedId > predecessor;
-    std::unordered_map< VisitedId, int > distance;
+    Predecessors predecessor;
+    std::unordered_map< VisitedId, size_t > distance;
+    size_t layer = 0;
 
-    VisitedId startId = visited.insert( start );
-    // reporter.onUpdateSeen( visited );
-
+    VisitedId startId = visited.insert( start ); rep.onUpdateVisited( visited );
     // Starting configuration has itself as predecessor and distance of 0
-    predecessor.insert( { startId, startId } );
-    // reporter.onUpdatePredecessors( predecessor );
-    distance.insert( { startId, 0 } );
-    // reporter.onUpdateDistance( distance );
+    predecessor.insert( { startId, startId } ); rep.onUpdatePredecessors( predecessor );
+    distance.insert( { startId, layer } ); rep.onUpdateDistance( distance );
+    rep.onUpdateLayer( layer );
+    std::cout << rep.toString() << "\n";
 
-    size_t currDis = 0;
-
-    // start is isomorphic to target
     if ( equalConfig( start, target ) ) 
         return getPredecessors( visited, predecessor, startId, startId );
 
     std::queue< VisitedId > bfsQueue;
-
-    bfsQueue.push( startId );
-    // reporter.onUpdateQueue( bfsQueue );
+    bfsQueue.push( startId ); rep.onUpdateQueue( bfsQueue );
 
     while ( !bfsQueue.empty() ) 
     {
         VisitedId current = bfsQueue.front();
-        // reporter.onUpdateCurrent( *current );
-        bfsQueue.pop();
-        // reporter.onUpdateQueue( bfsQueue );
+        bfsQueue.pop(); rep.onUpdateQueue( bfsQueue );
 
-        if ( distance.find( current )->second != currDis )
+        // We are adding to a different layer
+        if ( distance.find( current )->second != layer )
         {
-            assert( currDis == distance.find( current )->second - 1 );
-            ++currDis;
-            std::cout << "current distance: " << currDis << "\n";
-            std::cout << "queue size: " << bfsQueue.size() << "\n";
-            std::cout << "Visited shapes: " << visited.size() << "\n";
+            assert( ( distance.find( current )->second == 0 && current == startId ) || 
+                layer == distance.find( current )->second - 1 );
+            ++layer; rep.onUpdateLayer( layer );
+            std::cout << rep.toString() << "\n";
         }
 
-        assert( equalConfig( start, visited[startId] ) );
-        assert( start.isPrepared() );
         std::vector< RofiWorld > descendants = getDescendants( visited[current], step, bound );
-        assert( start.isPrepared() );
-
-        assert( equalConfig( start, visited[startId] ) );
+        rep.onGenerateDescendants( descendants );
 
         for ( const RofiWorld& child : descendants ) {
             if ( visited.contains( child ) ) continue;
 
-            VisitedId childId = visited.insert( child );
-
-            // reporter.onUpdateSeen( visitedChild );
-            predecessor.insert({ childId, current });
-            // reporter.onUpdatePredecessors(predecessor);
-            assert( distance.find( current ) != distance.end() );
-            distance.insert({ childId, distance.find( current )->second + 1 });
-            // reporter.onUpdateDistance(distance);
+            VisitedId childId = visited.insert( child ); rep.onUpdateVisited( visited );
+            predecessor.insert({ childId, current }); rep.onUpdatePredecessors( predecessor );
+            assert( distance.find( current ) != distance.end() ); // current must have been assigned distance already
+            distance.insert({ childId, distance.find( current )->second + 1 }); rep.onUpdateDistance( distance );
 
             if ( equalConfig( child, target ) ) 
             {
-                std::vector< RofiWorld > output = getPredecessors( visited, predecessor, childId, startId );
-                // reporter.onBuildPredecessors( output );
-                std::cout << "Visited shapes: " << visited.size() << "\n";
-                return output;
+                rep.onReturn( true );
+                return getPredecessors( visited, predecessor, childId, startId );
             }
 
-            bfsQueue.push( childId );
-            // reporter.onUpdateQueue( bfsQueue );
+            bfsQueue.push( childId ); rep.onUpdateQueue( bfsQueue );
         }
     }
-    std::vector< RofiWorld > output = {};
-    // reporter.onBuildPredecessors(output);
-    std::cout << "Visited shapes: " << visited.size() << "\n";
-    std::cout << "Path does not exist\n";
-    return output;
+
+    // Target is not reachable from start using step rotations and dis/connections
+    rep.onReturn( false );
+    return {};
 }
 
 } // namespace rofi::isoreconfig
