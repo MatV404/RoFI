@@ -42,100 +42,11 @@ void saveToFile( const RofiWorld& world, const std::string& path )
 
 std::string shapesPath = "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/";
 
-auto A1 = parseRofiWorld( shapesPath + "A1.in" );
-auto A2 = parseRofiWorld( shapesPath + "A2.in" );
-auto A3 = parseRofiWorld( shapesPath + "A3.in" );
-auto A4 = parseRofiWorld( shapesPath + "A4.in" );
-auto B1 = parseRofiWorld( shapesPath + "B1.in" );
-auto B2 = parseRofiWorld( shapesPath + "B2.in" );
-auto B3 = parseRofiWorld( shapesPath + "B3.in" );
-auto B4 = parseRofiWorld( shapesPath + "B4.in" );
-auto C1 = parseRofiWorld( shapesPath + "C1.in" );
-auto C2 = parseRofiWorld( shapesPath + "C2.in" );
-auto C3 = parseRofiWorld( shapesPath + "C3.in" );
-auto C4 = parseRofiWorld( shapesPath + "C4.in" );
-auto D1 = parseRofiWorld( shapesPath + "D1.in" );
-auto D2 = parseRofiWorld( shapesPath + "D2.in" );
-auto D3 = parseRofiWorld( shapesPath + "D3.in" );
-auto D4 = parseRofiWorld( shapesPath + "D4.in" );
-auto E1 = parseRofiWorld( shapesPath + "E1.in" );
-auto E2 = parseRofiWorld( shapesPath + "E2.in" );
-auto E3 = parseRofiWorld( shapesPath + "E3.in" );
-auto E4 = parseRofiWorld( shapesPath + "E4.in" );
-auto E5 = parseRofiWorld( shapesPath + "E5.in" );
-auto E6 = parseRofiWorld( shapesPath + "E6.in" );
-auto E7 = parseRofiWorld( shapesPath + "E7.in" );
-auto E8 = parseRofiWorld( shapesPath + "E8.in" );
-auto F1 = parseRofiWorld( shapesPath + "F1.in" );
-auto F2 = parseRofiWorld( shapesPath + "F2.in" );
-auto F3 = parseRofiWorld( shapesPath + "F3.in" );
-auto F4 = parseRofiWorld( shapesPath + "F4.in" );
-auto F5 = parseRofiWorld( shapesPath + "F5.in" );
-auto F6 = parseRofiWorld( shapesPath + "F6.in" );
-auto F7 = parseRofiWorld( shapesPath + "F7.in" );
-auto F8 = parseRofiWorld( shapesPath + "F8.in" );
-auto G1 = parseRofiWorld( shapesPath + "G1.in" );
-auto G2 = parseRofiWorld( shapesPath + "G2.in" );
-auto H1 = parseRofiWorld( shapesPath + "H1.in" );
-auto H2 = parseRofiWorld( shapesPath + "H2.in" );
-
 void testOne90();
 
 int main(int argc, char** argv) 
 {
-    // assert( equalShape( C1, C2 ) );
-
-    {
-    RofiWorld world;
-    // add universal module with id 42 in the default state
-    auto& m1 = world.insert( UniversalModule( 42, 0_deg, 0_deg, 0_deg ) );
-    // add universal module with id 42 with beta set to 45 degrees and gamma to 90 degrees
-    auto& m2 = world.insert( UniversalModule( 66, 0_deg, 45_deg, 90_deg ) );
-
-    // connect A+X of the universal module with id = 42 to A-X of UM with id = 66
-    connect( m1.connectors()[ 2 ], m2.connectors()[ 0 ], roficom::Orientation::North );
-    // fix the position of the `shoe A` in { 0, 0, 0 }
-    const auto identity = arma::mat(4, 4, arma::fill::eye);
-    connect< RigidJoint >( m1.bodies()[ 0 ], { 0, 0, 0 }, identity );
-    world.prepare().get_or_throw_as< std::runtime_error >();;
-    decomposeRofiWorld( world );
-
-    RofiWorld world1, world2;
-    m1 = world1.insert( UniversalModule( 42, 45_deg, 0_deg, 0_deg ) );
-    connect< RigidJoint >( m1.bodies()[ 0 ], { 0, 0, 0 }, identity );
-    // add universal module with id 42 with beta set to 45 degrees and gamma to 90 degrees
-    m2 = world2.insert( UniversalModule( 66, 0_deg, 45_deg, 0_deg ) );
-    connect< RigidJoint >( m2.bodies()[ 0 ], { 0, 0, 0 }, identity );
-
-    world1.prepare().get_or_throw_as< std::runtime_error >();;
-    world2.prepare().get_or_throw_as< std::runtime_error >();;
-
-    assert( equalShape( world1, world2 ) );
-    }
-
-    // Test all possible shapes of one module with 90 degree step
-    testOne90();
-
-    {
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA1.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA2.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA1.in" ) 
-    ));
-    assert( equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA2.in" ) 
-    ));
-    assert( !equalShape( 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/shapes/TripleA1.in" ), 
-        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/triple.in" ) 
-    ));
-    }
-
-    // Test BFS with shapes
+    // testOne90();
 
     Dim::Cli cli;
     auto & startPath = cli.opt<std::string>("start", "./start.in").desc("Starting configuration in valid format");
@@ -149,18 +60,55 @@ int main(int argc, char** argv)
     std::vector< RofiWorld > result = bfsShapes( 
         parseRofiWorld( *startPath ),
         parseRofiWorld( *targetPath ),
-        Angle::deg( *step ).rad(), 1, rep );
+        Angle::deg( *step ).rad(), rep );
 
     std::cout << rep.toString() << "\n";
 
-    for ( size_t i = 0; i < result.size(); ++i )
-    {
-        std::stringstream path;
-        path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsResult/" << i << ".json";
-        // std::cout << "writing to: " << path.str() << "\n";
-        saveToFile( result[i], path.str() );
-    }
+    // for ( size_t i = 0; i < result.size(); ++i )
+    // {
+    //     std::stringstream path;
+    //     path << "/home/jarom/RoFI/softwareComponents/isoreconfig/bfsResult/" << i << ".json";
+    //     // std::cout << "writing to: " << path.str() << "\n";
+    //     saveToFile( result[i], path.str() );
+    // }
 }
+
+// auto A1 = parseRofiWorld( shapesPath + "A1.in" );
+// auto A2 = parseRofiWorld( shapesPath + "A2.in" );
+// auto A3 = parseRofiWorld( shapesPath + "A3.in" );
+// auto A4 = parseRofiWorld( shapesPath + "A4.in" );
+// auto B1 = parseRofiWorld( shapesPath + "B1.in" );
+// auto B2 = parseRofiWorld( shapesPath + "B2.in" );
+// auto B3 = parseRofiWorld( shapesPath + "B3.in" );
+// auto B4 = parseRofiWorld( shapesPath + "B4.in" );
+// auto C1 = parseRofiWorld( shapesPath + "C1.in" );
+// auto C2 = parseRofiWorld( shapesPath + "C2.in" );
+// auto C3 = parseRofiWorld( shapesPath + "C3.in" );
+// auto C4 = parseRofiWorld( shapesPath + "C4.in" );
+// auto D1 = parseRofiWorld( shapesPath + "D1.in" );
+// auto D2 = parseRofiWorld( shapesPath + "D2.in" );
+// auto D3 = parseRofiWorld( shapesPath + "D3.in" );
+// auto D4 = parseRofiWorld( shapesPath + "D4.in" );
+// auto E1 = parseRofiWorld( shapesPath + "E1.in" );
+// auto E2 = parseRofiWorld( shapesPath + "E2.in" );
+// auto E3 = parseRofiWorld( shapesPath + "E3.in" );
+// auto E4 = parseRofiWorld( shapesPath + "E4.in" );
+// auto E5 = parseRofiWorld( shapesPath + "E5.in" );
+// auto E6 = parseRofiWorld( shapesPath + "E6.in" );
+// auto E7 = parseRofiWorld( shapesPath + "E7.in" );
+// auto E8 = parseRofiWorld( shapesPath + "E8.in" );
+// auto F1 = parseRofiWorld( shapesPath + "F1.in" );
+// auto F2 = parseRofiWorld( shapesPath + "F2.in" );
+// auto F3 = parseRofiWorld( shapesPath + "F3.in" );
+// auto F4 = parseRofiWorld( shapesPath + "F4.in" );
+// auto F5 = parseRofiWorld( shapesPath + "F5.in" );
+// auto F6 = parseRofiWorld( shapesPath + "F6.in" );
+// auto F7 = parseRofiWorld( shapesPath + "F7.in" );
+// auto F8 = parseRofiWorld( shapesPath + "F8.in" );
+// auto G1 = parseRofiWorld( shapesPath + "G1.in" );
+// auto G2 = parseRofiWorld( shapesPath + "G2.in" );
+// auto H1 = parseRofiWorld( shapesPath + "H1.in" );
+// auto H2 = parseRofiWorld( shapesPath + "H2.in" );
 
 void testOne90APos()
 {
@@ -211,46 +159,46 @@ void testOne90BPos()
 void testOne90CPos()
 {
     assert( equalShape( C1, C1 ) );
-    // assert( equalShape( C1, C2 ) );
-    // assert( equalShape( C1, C3 ) );
+    assert( equalShape( C1, C2 ) );
+    assert( equalShape( C1, C3 ) );
     assert( equalShape( C1, C4 ) );
 
-    // assert( equalShape( C2, C1 ) );
+    assert( equalShape( C2, C1 ) );
     assert( equalShape( C2, C2 ) );
     assert( equalShape( C2, C3 ) );
-    // assert( equalShape( C2, C4 ) );
+    assert( equalShape( C2, C4 ) );
 
-    // assert( equalShape( C3, C1 ) );
+    assert( equalShape( C3, C1 ) );
     assert( equalShape( C3, C2 ) );
     assert( equalShape( C3, C3 ) );
-    // assert( equalShape( C3, C4 ) );
+    assert( equalShape( C3, C4 ) );
 
     assert( equalShape( C4, C1 ) );
-    // assert( equalShape( C4, C2 ) );
-    // assert( equalShape( C4, C3 ) );
+    assert( equalShape( C4, C2 ) );
+    assert( equalShape( C4, C3 ) );
     assert( equalShape( C4, C4 ) );
 }
 
 void testOne90DPos()
 {
     assert( equalShape( D1, D1 ) );
-    // assert( equalShape( D1, D2 ) );
-    // assert( equalShape( D1, D3 ) );
+    assert( equalShape( D1, D2 ) );
+    assert( equalShape( D1, D3 ) );
     assert( equalShape( D1, D4 ) );
 
-    // assert( equalShape( D2, D1 ) );
+    assert( equalShape( D2, D1 ) );
     assert( equalShape( D2, D2 ) );
     assert( equalShape( D2, D3 ) );
-    // assert( equalShape( D2, D4 ) );
+    assert( equalShape( D2, D4 ) );
 
-    // assert( equalShape( D3, D1 ) );
+    assert( equalShape( D3, D1 ) );
     assert( equalShape( D3, D2 ) );
     assert( equalShape( D3, D3 ) );
-    // assert( equalShape( D3, D4 ) );
+    assert( equalShape( D3, D4 ) );
 
     assert( equalShape( D4, D1 ) );
-    // assert( equalShape( D4, D2 ) );
-    // assert( equalShape( D4, D3 ) );
+    assert( equalShape( D4, D2 ) );
+    assert( equalShape( D4, D3 ) );
     assert( equalShape( D4, D4 ) );
 }
 
@@ -503,3 +451,16 @@ void testOne90()
     testOne90Neg();
 }
 
+auto ThreeA1 = parseRofiWorld( shapesPath + "TripleA1.in" );
+auto ThreeA2 = parseRofiWorld( shapesPath + "TripleA2.in" );
+
+void testThree90()
+{
+    assert( equalShape( ThreeA1, 3A1 ) );
+    assert( equalShape( ThreeA1, 3A2 ) );
+    assert( equalShape( ThreeA2, 3A1 ) );
+    assert( equalShape( ThreeA2, 3A2 ) );
+    assert( !equalShape( ThreeA1,
+        parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/triple.in" ) 
+    ));
+}

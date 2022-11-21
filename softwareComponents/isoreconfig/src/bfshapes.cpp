@@ -75,7 +75,7 @@ std::vector< std::vector< float > > generateParameters( size_t dog, float step )
 // Get possible configurations made from the current one
 // "1 step" away, (TODO ignoring configurations of identical classes?)
 std::vector< RofiWorld > getDescendants(
-    const RofiWorld& current, float step, size_t bound ) 
+    const RofiWorld& current, float step ) 
 {
     std::vector< RofiWorld > result;
 
@@ -125,7 +125,7 @@ std::vector< RofiWorld > getDescendants(
             assert( conn.type == ComponentType::Roficom );
             std::optional<std::pair< const Component&, roficom::Orientation >> poss = conn.getNearConnector();
 
-            if ( !poss ) continue; // No possible connection for roficom <conn>
+            if ( !poss ) continue; // No adjacent roficom to <conn>
 
             assert( poss->first.type == ComponentType::Roficom );
             assert( poss->first.parent );
@@ -137,13 +137,17 @@ std::vector< RofiWorld > getDescendants(
 
             bool alreadyConnected = false;
             for ( const auto& rofiJoint : current.roficomConnections() )
-                if ( ( rofiJoint.getSourceModule( current ).getId() == mod1 && rofiJoint.sourceConnector == comp1 
-                    && rofiJoint.getDestModule( current ).getId() == mod2 && rofiJoint.destConnector == comp2 ) ||
-                    ( rofiJoint.getSourceModule( current ).getId() == mod2 && rofiJoint.sourceConnector == comp2 
-                    && rofiJoint.getDestModule( current ).getId() == mod1 && rofiJoint.destConnector == comp1 ) )
+            {
+                int sourceMod = rofiJoint.getSourceModule( current ).getId();
+                int destMod = rofiJoint.getDestModule( current ).getId();
+                if ( ( sourceMod == mod1 && rofiJoint.sourceConnector == comp1 
+                    && destMod == mod2 && rofiJoint.destConnector == comp2 ) ||
+                    ( sourceMod == mod2 && rofiJoint.sourceConnector == comp2 
+                    && destMod == mod1 && rofiJoint.destConnector == comp1 ) )
                     { alreadyConnected = true; break; }
-
+            }
             if ( alreadyConnected ) continue;
+
             auto newConn = std::tie( mod1, comp1, mod2, comp2, poss->second );
             possConnect.push_back( newConn );
         }
@@ -215,7 +219,7 @@ std::vector< RofiWorld > getPredecessors( const Shapes& visited,
 // Assume start and target consist only of **universal** modules
 std::vector<RofiWorld> bfsShapes(
     const RofiWorld& start, const RofiWorld& target,
-    float step, size_t bound, Reporter& rep )
+    float step, Reporter& rep )
 {
     Shapes visited;
     Predecessors predecessor;
@@ -227,7 +231,7 @@ std::vector<RofiWorld> bfsShapes(
     predecessor.insert( { startId, startId } ); rep.onUpdatePredecessors( predecessor );
     distance.insert( { startId, layer } ); rep.onUpdateDistance( distance );
     rep.onUpdateLayer( layer );
-    std::cout << rep.toString() << "\n";
+    // std::cout << rep.toString() << "\n";
 
     if ( equalConfig( start, target ) ) 
         return getPredecessors( visited, predecessor, startId, startId );
@@ -246,10 +250,10 @@ std::vector<RofiWorld> bfsShapes(
             assert( ( distance.find( current )->second == 0 && current == startId ) || 
                 layer == distance.find( current )->second - 1 );
             ++layer; rep.onUpdateLayer( layer );
-            std::cout << rep.toString() << "\n";
+            // std::cout << rep.toString() << "\n";
         }
 
-        std::vector< RofiWorld > descendants = getDescendants( visited[current], step, bound );
+        std::vector< RofiWorld > descendants = getDescendants( visited[current], step );
         rep.onGenerateDescendants( descendants );
 
         for ( const RofiWorld& child : descendants ) {

@@ -31,12 +31,14 @@ Positions decomposeUniversalModule(
 
 std::array< Positions, 2 > decomposeRofiWorld( const RofiWorld& rw )
 {
+    // if ( !rw.isPrepared() ) rw.prepare().get_or_throw_as< std::logic_error >();
     rw.isValid().get_or_throw_as< std::logic_error >();
 
+    // [0] == module points, [1] == connection points
     std::array< Positions, 2 > result;
 
     // Decompose modules
-    for ( const auto& /*RofiWorld::ModuleInfo*/ modInf : rw.modules() )
+    for ( const auto& /*ModuleInfo*/ modInf : rw.modules() )
         for ( const Matrix& pos : decomposeUniversalModule( *modInf.module ) )
             result[0].push_back( pos );
 
@@ -74,29 +76,15 @@ Cloud positionsToCloud( const Positions& poss )
 
 bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2 )
 {
-    auto comparePoints = [&]( const Point& p1, const Point& p2 ) 
-        { return p1(0) < p2(0) || ((p1(0) == p2(0) && p1(1) < p2(1)) || (p1(0) == p2(0) && p1(1) == p2(1) && p1(2) < p2(2))); };
+    if ( rw1.modules().size() != rw2.modules().size() ||
+        rw1.roficomConnections().size() != rw2.roficomConnections().size() )
+        return false;
 
     std::array< Positions, 2 > positions1 = decomposeRofiWorld( rw1 );
     std::array< Positions, 2 > positions2 = decomposeRofiWorld( rw2 );
 
-    // Cloud cop1 = positionsToCloud( positions1[0] );
-    // Cloud cop2 = positionsToCloud( positions2[0] );
-
-    // std::cout << "cop1:\n";
-    // cloudToScore( cop1 ).print();
-
-    // std::cout << "cop2:\n";
-    // cloudToScore( cop2 ).print();
-
-    // std::sort( cop1.begin(), cop1.end(), comparePoints );
-    // std::sort( cop2.begin(), cop2.end(), comparePoints );
-
-    // std::cout << "cop1:\n";
-    // cloudToScore( cop1 ).print();
-
-    // std::cout << "cop2:\n";
-    // cloudToScore( cop2 ).print();
+    assert( positions1[0] == positions2[0] );
+    assert( positions1[1] == positions2[1] );
 
     // Merge module points and connection points into one cloud
     for ( const Matrix& pos : positions1[1] )
@@ -104,17 +92,7 @@ bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2 )
     for ( const Matrix& pos : positions2[1] )
         positions2[0].push_back( pos );
 
-    // cop1 = positionsToCloud( positions1[0] );
-    // cop2 = positionsToCloud( positions2[0] );
-
-    // std::sort( cop1.begin(), cop1.end(), comparePoints );
-    // std::sort( cop2.begin(), cop2.end(), comparePoints );
-
-    // std::cout << "cop1:\n";
-    // cloudToScore( cop1 ).print();
-
-    // std::cout << "cop2:\n";
-    // cloudToScore( cop2 ).print();
+    assert( positions1[0] == positions2[0] );
 
     return isometric( positionsToCloud( positions1[0] ), positionsToCloud( positions2[0] ) );
 }

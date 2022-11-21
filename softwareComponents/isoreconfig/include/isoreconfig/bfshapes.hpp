@@ -129,6 +129,6 @@ public:
 
 std::vector<rofi::configuration::RofiWorld> bfsShapes(
     const rofi::configuration::RofiWorld& start, const rofi::configuration::RofiWorld& target,
-    float step, size_t bound, Reporter& rep );
+    float step, Reporter& rep );
 
 } // namespace rofi::isoreconfig

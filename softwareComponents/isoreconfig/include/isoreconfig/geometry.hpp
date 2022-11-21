@@ -37,7 +37,7 @@ Matrix pointToPos( const Point& point );
 Point posToPoint( const Matrix& position );
 
 /**
- * @brief Calculate the centroid (unweighted average) 
+ * @brief Calculates the centroid (unweighted average) 
  * of a given cloud of points.
  * Assumes the cloud is not empty.
  * @param cop Cloud to calculate the centroid from.
@@ -46,11 +46,12 @@ Point posToPoint( const Matrix& position );
 Point centroid( const Cloud& cop );
 
 /**
- * @brief Calculate the centroid (unweighted average) 
+ * @brief Calculates the centroid (unweighted average) 
  * of a given vector of positions.
  * Assumes the vector is not empty.
- * @param positions Vector to calculate the centroid from.
- * @return Unweighted average (centroid) of a given vector <positions>.
+ * @param positions Positions to calculate the centroid from.
+ * @return Unweighted average (centroid) of positions 
+ * given as matrices <positions>.
  */
 Matrix centroid( const std::vector< Matrix >& positions );
 
@@ -80,10 +81,10 @@ std::array< Cloud, 2 > longestVectors(
 std::array< Cloud, 2 > longestVectors( 
     const Cloud& cop, const double epsilon = ERROR_MARGIN );
 
-bool isometric( Cloud cop1, Cloud cop2, bool mirror = true );
+bool isometric( Cloud cop1, Cloud cop2 );
 
 arma::mat cloudToScore( const Cloud& cop );
-Cloud normalizeCloud( const Cloud& cop );
+Cloud normalizedCloud( const Cloud& cop );
 Cloud scoreToCloud( const arma::mat& score );
 
 } // namespace rofi::isoreconfig
