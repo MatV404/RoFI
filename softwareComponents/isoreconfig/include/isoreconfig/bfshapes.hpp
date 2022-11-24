@@ -72,18 +72,18 @@ class Reporter
 public:
     Reporter() = default;
 
-    void onUpdateVisited( const Shapes& visited )
+    void onUpdateVisited( const Shapes& )
     {
         ++_shapesTotal;
         ++_shapesCurrent;
     }
 
-    void onUpdatePredecessors( const Predecessors& pred )
+    void onUpdatePredecessors( const Predecessors& )
     {
         // pass
     }
 
-    void onUpdateDistance( const std::unordered_map< VisitedId, size_t >& dist )
+    void onUpdateDistance( const std::unordered_map< VisitedId, size_t >& )
     {
         // pass
     }
@@ -113,22 +113,25 @@ public:
     std::string toString() const
     {
         std::stringstream result;
-        result << "foundPath: " << (_pathFound ? "1" : "0") << "\n";
-        result << "currentLayer: " << _layerShapes.size() << "\n";
-        result << "currentLayerShapes: " << _shapesCurrent << "\n";
-        result << "totalShapes: " << _shapesTotal << "\n";
-        result << "maxQSize: " << _maxQueueSize << "\n";
-        result << "maxDescendants: " << _maxDescendants << "\n";
+        
+        result << "foundPath: "          << (_pathFound ? "1" : "0") << "\n";
+        result << "currentLayer: "       << _layerShapes.size()      << "\n";
+        result << "currentLayerShapes: " << _shapesCurrent           << "\n";
+        result << "totalShapes: "        << _shapesTotal             << "\n";
+        result << "maxQSize: "           << _maxQueueSize            << "\n";
+        result << "maxDescendants: "     << _maxDescendants          << "\n";
         result << "layerShapes: ";
         for ( size_t shapeCount : _layerShapes ) 
             result << shapeCount << ";";
         result << "\n";
+
         return result.str();
     }
 };
 
 std::vector<rofi::configuration::RofiWorld> bfsShapes(
-    const rofi::configuration::RofiWorld& start, const rofi::configuration::RofiWorld& target,
+    const rofi::configuration::RofiWorld& start, 
+    const rofi::configuration::RofiWorld& target,
     float step, Reporter& rep );
 
 } // namespace rofi::isoreconfig
