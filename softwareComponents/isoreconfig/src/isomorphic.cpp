@@ -58,4 +58,28 @@ Matrix centroid( const RofiWorld& rw )
     return pointToPos( centroid( decomposeRofiWorld( rw )[0] ));
 }
 
+bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2 )
+{
+    // Worlds with different number of modules or connections cannot have same shape
+    if ( rw1.modules().size() != rw2.modules().size() ||
+        rw1.roficomConnections().size() != rw2.roficomConnections().size() )
+        return false;
+
+    std::array< Positions, 2 > positions1 = decomposeRofiWorld( rw1 );
+    std::array< Positions, 2 > positions2 = decomposeRofiWorld( rw2 );
+
+    assert( positions1[0].size() == positions2[0].size() );
+    assert( positions1[1].size() == positions2[1].size() );
+
+    // Merge module points and connection points into one cloud
+    for ( const Matrix& pos : positions1[1] )
+        positions1[0].push_back( pos );
+    for ( const Matrix& pos : positions2[1] )
+        positions2[0].push_back( pos );
+
+    assert( positions1[0].size() == positions2[0].size() );
+    
+    return isometric( positionsToCloud( positions1[0] ), positionsToCloud( positions2[0] ) );
+}
+
 } // namespace rofi::isoreconfig

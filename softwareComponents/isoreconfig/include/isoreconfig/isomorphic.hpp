@@ -43,4 +43,12 @@ std::array< Positions, 2 > decomposeRofiWorld( const rofi::configuration::RofiWo
  */
 Matrix centroid( const rofi::configuration::RofiWorld& rw );
 
+/**
+ * @brief Decides if given rofiworlds have the same physical shape.
+ * Decomposes the worlds into points, applies PCA transformation 
+ * and attempts to find an orthogonal transformation
+ * which transforms one set of points into the other.
+ */
+bool equalShape( const rofi::configuration::RofiWorld& rw1, const rofi::configuration::RofiWorld& rw2 );
+
 } // namespace rofi::isoreconfig

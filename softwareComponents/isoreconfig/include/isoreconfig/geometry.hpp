@@ -5,105 +5,177 @@
 
 #include <armadillo>
 
+#include <configuration/Matrix.h>
+
 namespace rofi::isoreconfig {
 
 constexpr double ERROR_MARGIN = 1.0 / 1000000;
 
 /**
- * @brief "Point" (three-dimensional vector)
+ * @brief Container of points as vectors
  */
-using Point = arma::vec3;
+using Points = std::vector< rofi::configuration::matrices::Vector >;
 /**
- * @brief Container of points
+ * @brief Set of points that can be normalized using PCA
  */
-using Cloud = std::vector< Point >;
-/**
- * @brief "Position" (4x4 matrix)
- */
-using Matrix = arma::mat44;
-/**
- * @brief Container of positions
- */
-using Positions = std::vector< Matrix >;
-/**
- * @brief Score (<n> x 3 matrix with <n> points as rows)
- */
-using Score = arma::mat;
+class Cloud;
 
 
 /**
- * @brief Converts a point to a position.
+ * @brief Decides whether given clouds define an equal physical shape.
+ * Assumes different number of points in cloud means different shapes.
+ * Normalizes clouds using PCA and attempts to find an orthogonal transformation 
+ * which transforms one cloud into the other.
  */
-Matrix pointToPos( const Point& point );
-
-/**
- * @brief Converts a cloud to positions
- */
-Positions cloudToPositions( const Cloud& cop );
-
-/**
- * @brief Converts a position to a point.
- */
-Point posToPoint( const Matrix& position );
-
-/**
- * @brief Converts positions to a cloud.
- */
-Cloud positionsToCloud( const Positions& poss );
-
-/**
- * @brief Converts cloud to score.
- */
-Score cloudToScore( const Cloud& cop );
-
-/**
- * @brief Converts score to a cloud.
- */
-Cloud scoreToCloud( const Score& score );
+bool isometric( Cloud cop1, Cloud cop2 );
 
 
-/**
- * @brief Calculate the centroid (unweighted average) 
- * of a given cloud of points.
- * Assumes the cloud is not empty.
- * @param cop Cloud to calculate the centroid from.
- * @return Unweighted average (centroid) of a given <cop>.
- */
-Point centroid( const Cloud& cop );
+class Cloud
+{
+    arma::mat _score; // rows are points in cloud
+    bool _normalized = false;
+    arma::mat _coeff; // PC coefficients - cols are (base) eigenvectors
+    arma::vec _latent; // eigenvalues of the covariance matrix of cloud
+    arma::vec _tsquared; // Hotteling's statistic for each sample
 
-/**
- * @brief Calculate the centroid (unweighted average) 
- * of given positions.
- * Assumes the vector is not empty.
- * @param positions Vector to calculate the center of gravity from.
- * @return Unweighted average (centroid) of a given vector <positions>.
- */
-Matrix centroid( const Positions& positions );
+    using Point = arma::subview_row<double>; 
 
-/**
- * @brief Finds points furthest and second furthest away from <centerPos> 
- * in <cop>.
- * @param center Point to measure the distance from. 
- * @param cop Cloud of points to go through.
- * @param epsilon Maximum distance two points can be apart to be considered
- * the same point.
- * @return Array of two clouds, first contains points furthest away from 
- * <center>, second contains those second furthest away from <center>. 
- */
-std::array< Cloud, 2 > longestVectors( 
-    const Point& center, const Cloud& cop, 
-    const double epsilon = ERROR_MARGIN );
+public:
 
-/**
- * @brief Finds points furthest and second furthest away from the center of
- * gravity of <cop> in <cop>.
- * @param cop Cloud of points to go through.
- * @param epsilon Maximum distance two points can be apart to be considered
- * the same point.
- * @return Array of two clouds, first contains points furthest away from 
- * the center of gravity, second contains those second furthest away from it. 
- */
-std::array< Cloud, 2 > longestVectors( 
-    const Cloud& cop, const double epsilon = ERROR_MARGIN );
+    explicit Cloud( const arma::mat& score ) : _score(score) {}
+    explicit Cloud( arma::mat&& score ) : _score( std::move(score) ) {}
+    explicit Cloud( const Points& pts ) 
+    {
+        _score.set_size( pts.size(), 3 );
+
+        for ( size_t i = 0; i < pts.size(); ++i )
+            _score.row(i) = { pts[i](0), pts[i](1), pts[i](2) };
+    }
+
+    Points toPoints() const
+    {
+        Points result( size() );
+
+        for ( size_t i = 0; i < size(); ++i )
+            result[i] = { _score(i, 0), _score(i, 1), _score(i, 2), 1 };
+            
+        return result;
+    }
+
+    /**
+     * @brief Normalize the cloud to use its PCA coordinate system
+     * (or its reflection in case the PCA transformation is a reflection,
+     * so the shape of the cloud does not change).
+     */
+    void normalize()
+    {
+        arma::mat newScore;
+
+        princomp( _coeff, newScore, _latent, _tsquared, _score );
+        auto determinant = det( _coeff );
+        assert( std::abs( determinant ) - 1 < ERROR_MARGIN );
+
+        // If determinant is negative (therefore ~= -1), reflect along one plane (we use YZ).
+        // (negative sign -> reflection, which can change the shape of the cloud)
+        if ( determinant < 0 )
+        {
+            newScore *= arma::mat{ {-1, 0, 0}, {0, 1, 0}, {0, 0, 1} };
+            _coeff *= arma::mat{ {-1, 0, 0}, {0, 1, 0}, {0, 0, 1} };
+        } 
+
+        _score = std::move( newScore );
+        _normalized = true;
+    }
+
+    void transform( const arma::mat33& transf )
+    {
+        _normalized = false;
+        _score *= transf;
+    }
+ 
+    bool isNormalized() const
+    {
+        return _normalized;
+    }
+    
+    arma::mat transformation() const
+    {
+        if ( !_normalized )
+            throw std::logic_error( "Cloud is not normalized" );
+
+        // transposed _coeff is PCA transformation matrix
+        return _coeff.t();
+    }
+
+    size_t size() const
+    {
+        return _score.n_rows;
+    }
+
+    bool operator==( const Cloud& o ) const
+    {
+        if ( size() != o.size() ) 
+            return false;
+
+        std::unordered_set< size_t > used;
+
+        for ( size_t p1 = 0; p1 < size(); ++p1 )
+        {
+            auto [ cont, p2 ] = o.containsPoint( _score.row( p1 ), used );
+            if ( !cont )
+                return false;
+
+            used.insert( p2 );
+        }
+
+        assert( used.size() == size() );
+        return true;
+    }
+
+    auto begin() const
+    {
+        return _score.begin_row( 0 );
+    }
+
+    auto begin()
+    {
+        return _score.begin_row( 0 );
+    }
+
+    auto end() const
+    {
+        return _score.end_row( size() - 1 );
+    }
+
+    auto end()
+    {
+        return _score.end_row( size() - 1 );
+    }
+
+    void print() const
+    {
+        _score.print();
+    }
+
+private:
+
+    std::pair< bool, size_t > containsPoint(
+        const Point& p,
+        const std::unordered_set< size_t >& used ) const
+    {
+        auto equalPoints = []( const Point& p1, const Point& p2 )
+        {
+            return std::abs( p1[0] - p2[0] ) < ERROR_MARGIN
+                && std::abs( p1[1] - p2[1] ) < ERROR_MARGIN
+                && std::abs( p1[2] - p2[2] ) < ERROR_MARGIN;
+        }
+
+        for ( size_t i = 0; i < size(); ++i )
+            if ( !used.contains( i ) && equalPoints( p, _score.row(i) ) )
+                return { true, i };
+                
+        return { false, 0 };
+    }
+};
 
 } // namespace rofi::isoreconfig
