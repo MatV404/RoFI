@@ -2,10 +2,59 @@
 
 namespace rofi::isoreconfig {
 
-Transformation rotate( double r, const Point &p )
+Matrix pointToPos( const Point& point )
+{
+    Matrix result( arma::fill::eye );
+    for ( int i = 0; i < 3; ++i )
+        result(i,3) = point(i);
+    return result;
+}
+
+Positions cloudToPositions( const Cloud& cop )
+{
+    Positions result;
+    for ( const Point& p : cop ) result.push_back( pointToPos( p ) );
+    return result;
+}
+
+Point posToPoint( const Matrix& position )
+{
+    return Point{ position.at(0,3), position.at(1,3), position.at(2,3) };
+}
+
+Cloud positionsToCloud( const Positions& poss )
+{
+    Cloud result;
+    for ( const Matrix& pos : poss ) result.push_back( posToPoint( pos ) );
+    return result;
+}
+
+Score cloudToScore( const Cloud& cop )
+{
+    arma::mat result( cop.size(), 3 );
+
+    for ( size_t i = 0; i < cop.size(); ++i )  
+        for ( size_t j = 0; j < 3; ++j )
+            result(i, j) = cop[i](j);
+
+    return result;
+}
+
+Cloud scoreToCloud( const Score& score )
+{
+    Cloud result;
+
+    for ( size_t i = 0; i < score.n_rows; ++i )
+        result.push_back( { score(i,0), score(i, 1), score(i, 2) } );
+
+    return result;
+}
+
+
+arma::mat33 rotate( double r, const Point &p )
 {
     const int x = 0, y = 1, z = 2;
-    Transformation rotate = arma::eye(3,3);
+    arma::mat33 rotate = arma::eye(3,3);
     auto cos_r = cos(r); auto sin_r = sin(r);
 
     rotate(0,0) = cos_r + p(x) * p(x) * (1 - cos_r);
@@ -27,19 +76,6 @@ void ceilPoint ( Point& p )
 { 
     for ( int i = 0; i < 3; ++i ) 
         p(i) = std::floor( p(i) / ERROR_MARGIN + 0.5 ) * ERROR_MARGIN; 
-}
-
-Matrix pointToPos( const Point& point )
-{
-    Matrix result( arma::fill::eye );
-    for ( int i = 0; i < 3; ++i )
-        result(i,3) = point(i);
-    return result;
-}
-
-Point posToPoint( const Matrix& position )
-{
-    return Point{ position.at(0,3), position.at(1,3), position.at(2,3) };
 }
 
 Point centroid( const Cloud& cop )
@@ -104,27 +140,6 @@ std::array< Cloud, 2 > longestVectors( const Point& center, const Cloud& cop, co
 std::array< Cloud, 2 > longestVectors( const Cloud& cop, const double eps )
 {
     return longestVectors( centroid( cop ), cop, eps );
-}
-
-arma::mat cloudToScore( const Cloud& cop )
-{
-    arma::mat result( cop.size(), 3 );
-
-    for ( size_t i = 0; i < cop.size(); ++i )  
-        for ( size_t j = 0; j < 3; ++j )
-            result(i, j) = cop[i](j);
-
-    return result;
-}
-
-Cloud scoreToCloud( const arma::mat& score )
-{
-    Cloud result;
-
-    for ( size_t i = 0; i < score.n_rows; ++i )
-        result.push_back( { score(i,0), score(i, 1), score(i, 2) } );
-
-    return result;
 }
 
 Cloud normalizedCloud( Cloud cop, const Point& center )
