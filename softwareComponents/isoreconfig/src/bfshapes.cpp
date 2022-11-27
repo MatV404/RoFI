@@ -12,7 +12,6 @@ namespace rofi::isoreconfig {
 using namespace rofi::configuration;
 using Predecessors = std::unordered_map< VisitedId, VisitedId >;
 
-// Auxiliary functions
 void saveToFile( const RofiWorld& bot, const std::string& path )
 {
     auto jason = serialization::toJSON( bot );
@@ -35,7 +34,6 @@ bool withinBounds( const std::span< float >& values,
 
     return true;
 }
-// end Auxiliary functions
 
 bool equalConfig( const RofiWorld& bot1, const RofiWorld& bot2 )
 {
@@ -233,8 +231,12 @@ std::vector<RofiWorld> bfsShapes(
     rep.onUpdateLayer( layer );
     // std::cout << rep.toString() << "\n";
 
+    rep.onNewDescendant( start );
     if ( equalConfig( start, target ) ) 
+    {
+        rep.onReturn( true );
         return getPredecessors( visited, predecessor, startId, startId );
+    }
 
     std::queue< VisitedId > bfsQueue;
     bfsQueue.push( startId ); rep.onUpdateQueue( bfsQueue );
@@ -257,6 +259,7 @@ std::vector<RofiWorld> bfsShapes(
         rep.onGenerateDescendants( descendants );
 
         for ( const RofiWorld& child : descendants ) {
+            rep.onNewDescendant( child );
             if ( visited.contains( child ) ) continue;
 
             VisitedId childId = visited.insert( child ); rep.onUpdateVisited( visited );

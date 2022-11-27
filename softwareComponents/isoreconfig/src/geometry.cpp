@@ -227,13 +227,25 @@ bool isometric( Cloud cop1, Cloud cop2 )
     std::vector< double > half_space = { 0, M_PI };
     std::vector< double > rotations = { 0, M_PI_2, M_PI, M_PI + M_PI_2 };
 
+    // for ( const Point& trans : std::vector< Point >({ { 1, 1, 1 }, { -1, -1, 1 }, { -1, 1, -1 }, { 1, -1, -1 } }))
+    // {
+        
+    //     auto cop1transformed = cop1;
+    //     for ( Point& p : cop1transformed ) for ( int i = 0; i < 3; ++i ) p(i) *= trans(i);
+        
+    //     if ( equalClouds( cop1transformed, cop2 ) )
+    //         return true;
+    // }
+
+    // return false;
+
     // TODO only some rotations are required - X should be X or -X, not +-Y or +-Z
     // but we mirror along X, which might change things
     for ( size_t ax = 0; ax < axes.size(); ++ax )
-        for ( const auto& hp : half_space )
+        /* for ( const auto& hp : half_space ) */ // Might be useless - search only four octants
             for ( const auto& alpha : rotations )
             {
-                auto rot = rotate( hp, axes[ (ax + 1) % axes.size() ] ) * rotate( alpha, axes[ax] );
+                auto rot = /* rotate( hp, axes[ (ax + 1) % axes.size() ] ) * */ rotate( alpha, axes[ax] );
 
                 auto cop1transformed = cop1;
 

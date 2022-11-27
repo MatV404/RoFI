@@ -56,6 +56,8 @@ int main(int argc, char** argv)
         parseRofiWorld( *targetPath ),
         Angle::deg( *step ).rad(), rep );
 
+    std::cout << rep.toString();
+
     for ( size_t i = 0; i < result.size(); ++i )
     {
         std::stringstream path;

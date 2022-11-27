@@ -63,6 +63,7 @@ class Reporter
 {
     std::vector< size_t > _layerShapes;
     size_t _maxQueueSize = 0;
+    size_t _configsTested = 0;
     size_t _shapesTotal = 0;
     size_t _shapesCurrent = 0;
     size_t _maxDescendants = 0;
@@ -86,6 +87,11 @@ public:
     void onUpdateDistance( const std::unordered_map< VisitedId, size_t >& )
     {
         // pass
+    }
+
+    void onNewDescendant( const RofiWorld& )
+    {
+        ++_configsTested;
     }
 
     void onUpdateLayer( size_t layer )
@@ -120,6 +126,7 @@ public:
         result << "totalShapes: "        << _shapesTotal             << "\n";
         result << "maxQSize: "           << _maxQueueSize            << "\n";
         result << "maxDescendants: "     << _maxDescendants          << "\n";
+        result << "allConfigs: "         << _configsTested           << "\n";
         result << "layerShapes: ";
         for ( size_t shapeCount : _layerShapes ) 
             result << shapeCount << ";";

@@ -9,3 +9,6 @@ target_link_libraries(isoreconfig PUBLIC ${ARMADILLO_LIBRARIES} configuration co
 
 add_executable( rofi-isoreconfig main.cpp )
 target_link_libraries(rofi-isoreconfig PRIVATE ${ARMADILLO_LIBRARIES} dimcli configuration isoreconfig configurationWithJson)
+
+add_executable( test-isoreconfig tests.cpp )
+target_link_libraries( test-isoreconfig PRIVATE ${ARMADILLO_LIBRARIES} configuration isoreconfig configurationWithJson )

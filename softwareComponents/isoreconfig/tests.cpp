@@ -6,6 +6,9 @@
 #include <isoreconfig/isomorphic.hpp>
 #include <isoreconfig/bfshapes.hpp>
 
+using namespace rofi::configuration;
+using namespace rofi::isoreconfig;
+
 RofiWorld parseRofiWorld( const std::string& path )
 {
     std::ifstream inputTarget;
@@ -408,13 +411,23 @@ void testOne90()
 auto ThreeA1 = parseRofiWorld( shapesPath + "TripleA1.in" );
 auto ThreeA2 = parseRofiWorld( shapesPath + "TripleA2.in" );
 
-void testThree90()
+void testThree()
 {
-    assert( equalShape( ThreeA1, 3A1 ) );
-    assert( equalShape( ThreeA1, 3A2 ) );
-    assert( equalShape( ThreeA2, 3A1 ) );
-    assert( equalShape( ThreeA2, 3A2 ) );
+    assert( equalShape( ThreeA1, ThreeA1 ) );
+    assert( equalShape( ThreeA1, ThreeA2 ) );
+    assert( equalShape( ThreeA2, ThreeA1 ) );
+    assert( equalShape( ThreeA2, ThreeA2 ) );
     assert( !equalShape( ThreeA1,
         parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/triple.in" ) 
     ));
+    assert( !equalShape( parseRofiWorld( "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/triple.in" ),
+        ThreeA1
+    ));
+}
+
+int main(int argc, char** argv) 
+{
+    testOne90();
+    testThree();
+    std::cout << "All tests have passed.\n";
 }
