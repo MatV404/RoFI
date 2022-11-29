@@ -1,4 +1,7 @@
 #include "forwarding_table.h"
+
+#include <lwip/ip6_addr.h>
+#include <lwip/ip6.h>
 #include "string.h"
 
 #ifndef FW_TABLE_SIZE
