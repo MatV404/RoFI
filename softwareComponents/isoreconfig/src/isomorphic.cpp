@@ -6,56 +6,78 @@ namespace rofi::isoreconfig {
 
 using namespace rofi::configuration;
 
-Positions decomposeUniversalModule( 
-    const Module& mod )
+Matrix pointMatrix( const Vector& pt )
 {
-    // <mod> must be a UniversalModule
-    assert( mod.type == ModuleType::Universal );
+    Matrix result( arma::eye( 4, 4 ) );
+    result.col(3) = pt;
+    result(3,3) = 1;
+    return result;
+}
 
-    std::span<const Component> comps = mod.components();
-    Positions result;
+Points decomposeModule( const Module& mod )
+{
+    Points result;
 
-    for ( int compIndex = 0; compIndex < 6; ++compIndex )
+    for ( const Component& comp : mod.components() )
     {
-        // First six components of UniversalModule are Roficoms
-        assert( comps[ compIndex ].type == ComponentType::Roficom );
+        if ( comp.type != ComponentType::Roficom ) 
+            continue;
 
-        Matrix absCompPos = comps[ compIndex ].getPosition();
-        // Component position of a UniversalModule is always in the center 
+        Matrix posMat = comp.getPosition() * matrices::translate( { -0.5, 0, 0 } );
+        // Center of roficoms of a module is in the center 
         // of the shoe it belongs to; to get the "actual" (visual) position,
-        // we want to move it by half a unit on -X
-        result.push_back( absCompPos * matrices::translate( { -0.5, 0, 0 } ) );
+        // move it by half a unit in the direction the roficom is facing (X axis)
+        result.push_back( posMat.col(3) );
     } 
 
     return result;
 }
 
-std::array< Positions, 2 > decomposeRofiWorld( const RofiWorld& rw )
+std::array< Points, 2 > decomposeRofiWorld( const RofiWorld& rw )
 {
     rw.isValid().get_or_throw_as< std::logic_error >();
 
-    std::array< Positions, 2 > result;
+    std::array< Points, 2 > result;
 
     // Decompose modules
-    for ( const auto& /*RofiWorld::ModuleInfo*/ modInf : rw.modules() )
-        for ( const Matrix& pos : decomposeUniversalModule( *modInf.module ) )
-            result[0].push_back( pos );
+    for ( const auto& /*ModuleInfo*/ modInf : rw.modules() )
+        for ( const Vector& pt : decomposeModule( *modInf.module ) )
+            result[0].push_back( pt );
 
     // Decompose connections
     for ( const RoficomJoint& connection : rw.roficomConnections() )
     {
-        Matrix pos = connection.getSourceModule( rw ).components()[connection.sourceConnector].getPosition();
+        Matrix posMat = connection.getSourceModule( rw ).components()[connection.sourceConnector].getPosition();
+        posMat *= matrices::translate( { -0.5, 0, 0 } );
         // Connection position is in the center of the connected module,
         // so it must be translated by half a unit
-        result[1].push_back( pos * matrices::translate( { -0.5, 0, 0 } ) );
+        result[1].push_back( posMat.col(3) );
     }
 
     return result;
 }
 
-Matrix centroid( const RofiWorld& rw )
+Vector centroid( const RofiWorld& rw )
 {
-    return pointToPos( centroid( decomposeRofiWorld( rw )[0] ));
+    std::array< Points, 2 > pts = decomposeRofiWorld( rw );
+    for ( const Vector& pt : pts[1] )
+        pts[0].push_back( pt );
+    return centroid( pts[0] );
+}
+
+Vector centroid( const Points& pts )
+{
+    assert( pts.size() >= 1 );
+
+    Vector result = std::accumulate(
+        ++pts.begin(), pts.end(), pts[0], 
+        []( const Vector& pt1, const Vector& pt2 ){ return pt1 + pt2; } );
+
+    result(3) = 1;
+    for ( size_t i = 0; i < 3; ++i )
+        result(i) /= double(pts.size());
+
+    return result;
 }
 
 bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2 )
@@ -65,21 +87,21 @@ bool equalShape( const RofiWorld& rw1, const RofiWorld& rw2 )
         rw1.roficomConnections().size() != rw2.roficomConnections().size() )
         return false;
 
-    std::array< Positions, 2 > positions1 = decomposeRofiWorld( rw1 );
-    std::array< Positions, 2 > positions2 = decomposeRofiWorld( rw2 );
+    std::array< Points, 2 > pts1 = decomposeRofiWorld( rw1 );
+    std::array< Points, 2 > pts2 = decomposeRofiWorld( rw2 );
 
-    assert( positions1[0].size() == positions2[0].size() );
-    assert( positions1[1].size() == positions2[1].size() );
+    assert( pts1[0].size() == pts2[0].size() );
+    assert( pts1[1].size() == pts2[1].size() );
 
-    // Merge module points and connection points into one cloud
-    for ( const Matrix& pos : positions1[1] )
-        positions1[0].push_back( pos );
-    for ( const Matrix& pos : positions2[1] )
-        positions2[0].push_back( pos );
+    // Merge module points and connection points into one container
+    for ( const Vector& pt : pts1[1] )
+        pts1[0].push_back( pt );
+    for ( const Vector& pt : pts2[1] )
+        pts2[0].push_back( pt );
 
-    assert( positions1[0].size() == positions2[0].size() );
+    assert( pts1[0].size() == pts2[0].size() );
     
-    return isometric( positionsToCloud( positions1[0] ), positionsToCloud( positions2[0] ) );
+    return isometric( Cloud( pts1[0] ), Cloud( pts2[0] ) );
 }
 
 } // namespace rofi::isoreconfig
