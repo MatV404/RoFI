@@ -117,7 +117,6 @@ int ip_add_route(const ip6_addr_t* addr, uint8_t mask, const char* netif_name) {
 struct netif* ip_find_route(const ip6_addr_t* ip, const ip6_addr_t* src) {
 	struct rt_entry* entry = ip_find_route_entry(ip);
 
-    //return entry && (src == NULL || !ip6_addr_isany_val(*src)) ? netif_find(entry->gw_name) : NULL;
     return entry && !ip6_addr_isany_val(*src) ? netif_find(entry->gw_name) : NULL;
 }
 
@@ -128,8 +127,8 @@ const ip6_addr_t* ip_find_gw(struct netif* netif, const ip6_addr_t* dest) {
 
     if (netif != NULL) {
         for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
-            if (!ip6_addr_isany(&netif->ip6_addr[i])) {
-                return &netif->ip6_addr[i];
+            if (!ip_addr_isany(&netif->ip6_addr[i])) {
+                return ip_2_ip6(&netif->ip6_addr[i]);
             }
         }
     }
