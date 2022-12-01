@@ -163,7 +163,7 @@ class NetworkManagerCli {
         /**
          * \brief Process given command and makes appropriate changes to underlying NetworkManager.
          * 
-         * \return Returns @true if the command was succesfully parsed.
+         * \return true if the command was succesfully parsed.
         */
         bool command( const std::string& cmd ) {
             std::stringstream ss( cmd );
@@ -219,8 +219,8 @@ class NetworkManagerCli {
         void help() const {
             const char* helpmsg = 
                 "netmg  [ if | interface ]    <name>  show\n"
-                "                                     address show\n"                   // show addresses
-                "                                             get            <index>\n" // get address on given index
+                "                                     address show\n"                     // show addresses
+                "                                             get            <index>\n"   // get address on given index
                 "                                             add            <ip/mask>\n" // add address
                 "                                             [rm | remove]  <ip/mask>\n" // remove address
                 "\n"
