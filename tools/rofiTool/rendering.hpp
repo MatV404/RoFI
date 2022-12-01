@@ -1,5 +1,5 @@
 #pragma once
 #include <configuration/rofiworld.hpp>
 
-void renderConfiguration( const rofi::configuration::RofiWorld & world, const std::string& configName = "unknown" );
+void renderRofiWorld( const rofi::configuration::RofiWorld & world, const std::string& configName = "unknown" );
 void renderPoints( rofi::configuration::RofiWorld world, const std::string& configName = "unknown", bool showModules = false );

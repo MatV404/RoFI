@@ -35,7 +35,7 @@ vtkSmartPointer< vtkMatrix4x4 > convertMatrix( const Matrix& m ) {
 }
 
 constexpr std::array< double, 3 > getModuleColor( int moduleIdx ) {
-    constexpr auto palette = std::array< std::array< uint8_t, 3 >, 7 >( {
+    constexpr auto palette = std::array< std::array< uint8_t, 3 >, 7 >{ {
             { 191, 218, 112 },
             { 242, 202, 121 },
             { 218, 152, 207 },
@@ -43,7 +43,7 @@ constexpr std::array< double, 3 > getModuleColor( int moduleIdx ) {
             { 104, 135, 205 },
             { 250, 176, 162 },
             { 234, 110, 111 },
-    } );
+    } };
     auto color = palette[ moduleIdx % palette.size() ];
     return std::array{ color[ 0 ] / 255.0, color[ 1 ] / 255.0, color[ 2 ] / 255.0 };
 }
@@ -147,8 +147,8 @@ void addModuleToScene( vtkRenderer& renderer,
     }
 }
 
-void buildConfigurationScene( vtkRenderer& renderer, const RofiWorld& world ) {
-    assert( world.isPrepared() && "The configuration has to be prepared" );
+void buildRofiWorldScene( vtkRenderer& renderer, const RofiWorld& world ) {
+    assert( world.isPrepared() && "The rofi world has to be prepared" );
 
     // get active (i.e. connected) connectors for each module within RofiWorld
     std::map< ModuleId, std::set< int > > activeConns;
@@ -159,7 +159,7 @@ void buildConfigurationScene( vtkRenderer& renderer, const RofiWorld& world ) {
 
     int index = 0;
     for ( auto& mInfo : world.modules() ) {
-        assert( mInfo.absPosition && "The configuration has to be prepared" );
+        assert( mInfo.absPosition && "The rofi world has to be prepared" );
         addModuleToScene( renderer,
                           *mInfo.module,
                           *mInfo.absPosition,
@@ -169,13 +169,13 @@ void buildConfigurationScene( vtkRenderer& renderer, const RofiWorld& world ) {
     }
 }
 
-void renderConfiguration( const RofiWorld& world, const std::string& configName ) {
-    assert( world.isPrepared() && "Configuration has to be prepared" );
-    assert( world.isValid() && "Configuration has to be valid" );
+void renderRofiWorld( const RofiWorld& world, const std::string& configName ) {
+    assert( world.isPrepared() && "The rofi world has to be prepared" );
+    assert( world.isValid() && "The rofi world has to be valid" );
 
     vtkNew< vtkRenderer > renderer;
     setupRenderer( *renderer.Get() );
-    buildConfigurationScene( *renderer.Get(), world );
+    buildRofiWorldScene( *renderer.Get(), world );
 
     vtkNew< vtkRenderWindow > renderWindow;
     renderWindow->AddRenderer( renderer.Get() );
@@ -240,7 +240,7 @@ void addPointToScene( vtkRenderer& renderer,
     renderer.AddActor( frameActor );
 }
 
-void buildConfigurationPointsScene( vtkRenderer& renderer, RofiWorld world, bool showModules ) {
+void buildRofiWorldPointsScene( vtkRenderer& renderer, RofiWorld world, bool showModules ) {
     using namespace rofi::isoreconfig;
 
     std::array< Positions, 2 > pts = decomposeRofiWorld( world );
@@ -297,7 +297,7 @@ void buildConfigurationPointsScene( vtkRenderer& renderer, RofiWorld world, bool
     // Translate reference points by the initial centroid in the direction of transf
     Matrix translation = matrices::translate( transf * ( -centroid( pts[ 0 ] ).col( 3 ) ) );
 
-    // Transform configuration reference points to new PCA coordinate system
+    // Transform rofi world reference points to new PCA coordinate system
     for ( auto j = world.referencePoints().begin(); j != world.referencePoints().end(); ++j ) {
         Vector newRefPoint = translation * j->refPoint;
 
@@ -318,7 +318,7 @@ void buildConfigurationPointsScene( vtkRenderer& renderer, RofiWorld world, bool
     }
     int index = 0;
     for ( auto& mInfo : world.modules() ) {
-        assert( mInfo.absPosition && "The configuration has to be prepared" );
+        assert( mInfo.absPosition && "The rofi world has to be prepared" );
         addModuleToScene( renderer,
                           *mInfo.module,
                           *mInfo.absPosition,
@@ -328,10 +328,10 @@ void buildConfigurationPointsScene( vtkRenderer& renderer, RofiWorld world, bool
     }
 }
 
-void renderPoints( RofiWorld configuration, const std::string& configName, bool showModules ) {
+void renderPoints( RofiWorld world, const std::string& configName, bool showModules ) {
     vtkNew< vtkRenderer > renderer;
     setupRenderer( *renderer.Get() );
-    buildConfigurationPointsScene( *renderer.Get(), std::move( configuration ), showModules );
+    buildRofiWorldPointsScene( *renderer.Get(), std::move( world ), showModules );
 
     vtkNew< vtkRenderWindow > renderWindow;
     renderWindow->AddRenderer( renderer.Get() );
