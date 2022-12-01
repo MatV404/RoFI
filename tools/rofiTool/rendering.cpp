@@ -76,12 +76,12 @@ vtkAlgorithmOutput* getComponentModel( ComponentType type ) {
     return cache[ type ]->GetOutputPort();
 }
 
-void setupRenderer( vtkRenderer* renderer ) {
-    renderer->SetBackground( 1.0, 1.0, 1.0 );
-    renderer->ResetCamera();
+void setupRenderer( vtkRenderer& renderer ) {
+    renderer.SetBackground( 1.0, 1.0, 1.0 );
+    renderer.ResetCamera();
 }
 
-void buildTemporarySceneShoeOnly( vtkRenderer* renderer, ComponentType component ) {
+void buildTemporarySceneShoeOnly( vtkRenderer& renderer, ComponentType component ) {
     vtkNew< vtkNamedColors > colors;
     vtkNew< vtkCylinderSource > cylinder;
     cylinder->SetResolution( 32 );
@@ -91,10 +91,10 @@ void buildTemporarySceneShoeOnly( vtkRenderer* renderer, ComponentType component
     bodyActor->SetMapper( bodyMapper.Get() );
     bodyActor->SetScale( 1 / 95.0 );
     bodyActor->GetProperty()->SetColor( colors->GetColor4d( "Tomato" ).GetData() );
-    renderer->AddActor( bodyActor.Get() );
+    renderer.AddActor( bodyActor.Get() );
 }
 
-void buildTemporaryScene( vtkRenderer* renderer ) {
+void buildTemporaryScene( vtkRenderer& renderer ) {
     vtkNew< vtkNamedColors > colors;
     vtkNew< vtkCylinderSource > cylinder;
     cylinder->SetResolution( 32 );
@@ -105,11 +105,11 @@ void buildTemporaryScene( vtkRenderer* renderer ) {
     cylinderActor->GetProperty()->SetColor( colors->GetColor4d( "Tomato" ).GetData() );
     cylinderActor->RotateX( 30.0 );
     cylinderActor->RotateY( -45.0 );
-    renderer->AddActor( cylinderActor.Get() );
+    renderer.AddActor( cylinderActor.Get() );
 }
 
-void addModuleToScene( vtkRenderer* renderer,
-                       Module& m,
+void addModuleToScene( vtkRenderer& renderer,
+                       const Module& m,
                        const Matrix& mPosition,
                        int moduleIndex,
                        const std::set< int >& activeConns )
@@ -143,11 +143,12 @@ void addModuleToScene( vtkRenderer* renderer,
         frameActor->SetPosition( cPosition( 0, 3 ), cPosition( 1, 3 ), cPosition( 2, 3 ) );
         frameActor->SetScale( 1.0 / 95.0 );
 
-        renderer->AddActor( frameActor );
+        renderer.AddActor( frameActor );
     }
 }
 
-void buildConfigurationScene( vtkRenderer* renderer, RofiWorld& world ) {
+void buildConfigurationScene( vtkRenderer& renderer, const RofiWorld& world ) {
+    assert( world.isPrepared() && "The configuration has to be prepared" );
 
     // get active (i.e. connected) connectors for each module within RofiWorld
     std::map< ModuleId, std::set< int > > activeConns;
@@ -168,10 +169,13 @@ void buildConfigurationScene( vtkRenderer* renderer, RofiWorld& world ) {
     }
 }
 
-void renderConfiguration( RofiWorld world, const std::string& configName ) {
+void renderConfiguration( const RofiWorld& world, const std::string& configName ) {
+    assert( world.isPrepared() && "Configuration has to be prepared" );
+    assert( world.isValid() && "Configuration has to be valid" );
+
     vtkNew< vtkRenderer > renderer;
-    setupRenderer( renderer.Get() );
-    buildConfigurationScene( renderer.Get(), world );
+    setupRenderer( *renderer.Get() );
+    buildConfigurationScene( *renderer.Get(), world );
 
     vtkNew< vtkRenderWindow > renderWindow;
     renderWindow->AddRenderer( renderer.Get() );
@@ -195,7 +199,7 @@ void renderConfiguration( RofiWorld world, const std::string& configName ) {
     renderWindowInteractor->Start();
 }
 
-void addPointToScene( vtkRenderer* renderer,
+void addPointToScene( vtkRenderer& renderer,
                       const Matrix& pointPosition,
                       std::array< double, 3 > colour,
                       double scale = 1 / 95.0 )
@@ -233,10 +237,10 @@ void addPointToScene( vtkRenderer* renderer,
     frameActor->SetPosition( pointPosition( 0, 3 ), pointPosition( 1, 3 ), pointPosition( 2, 3 ) );
     frameActor->SetScale( scale );
 
-    renderer->AddActor( frameActor );
+    renderer.AddActor( frameActor );
 }
 
-void buildConfigurationPointsScene( vtkRenderer* renderer, RofiWorld& world, bool showModules ) {
+void buildConfigurationPointsScene( vtkRenderer& renderer, RofiWorld world, bool showModules ) {
     using namespace rofi::isoreconfig;
 
     std::array< Positions, 2 > pts = decomposeRofiWorld( world );
@@ -326,8 +330,8 @@ void buildConfigurationPointsScene( vtkRenderer* renderer, RofiWorld& world, boo
 
 void renderPoints( RofiWorld configuration, const std::string& configName, bool showModules ) {
     vtkNew< vtkRenderer > renderer;
-    setupRenderer( renderer.Get() );
-    buildConfigurationPointsScene( renderer.Get(), configuration, showModules );
+    setupRenderer( *renderer.Get() );
+    buildConfigurationPointsScene( *renderer.Get(), std::move( configuration ), showModules );
 
     vtkNew< vtkRenderWindow > renderWindow;
     renderWindow->AddRenderer( renderer.Get() );
