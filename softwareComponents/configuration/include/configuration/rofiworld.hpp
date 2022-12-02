@@ -458,8 +458,8 @@ public:
  * The RofiWorld is composed out of modules.
  */
 class RofiWorld {
-    struct ModuleInfo;
 public:
+    struct ModuleInfo;
     using ModuleInfoHandle   = atoms::HandleSet< ModuleInfo   >::handle_type;
     using RoficomJointHandle = atoms::HandleSet< RoficomJoint >::handle_type;
     using SpaceJointHandle   = atoms::HandleSet< SpaceJoint   >::handle_type;
@@ -687,30 +687,6 @@ public:
     void disconnect( RoficomJointHandle h );
     void disconnect( SpaceJointHandle h );
 
-private:
-    void onModuleMove() {
-        _prepared = false;
-    }
-
-    void _clearModulePositions() {
-        for ( ModuleInfo& m : _modules ) {
-            m.absPosition = std::nullopt;
-            assert( m.module );
-            m.module->clearComponentPositions();
-        }
-        _prepared = false;
-    }
-
-    void _adoptModules() {
-        for ( ModuleInfo& m : _modules ) {
-            assert( m.module );
-            m.module->parent = this;
-            for ( auto& c : m.module->_components ) {
-                c.parent = m.module.get();
-            }
-        }
-    }
-
     struct ModuleInfo {
         ModuleInfo( atoms::ValuePtr< Module > m, std::vector< RoficomJointHandle > i, std::vector< RoficomJointHandle > o,
             std::vector< SpaceJointHandle > s, std::optional< Matrix > pos )
@@ -739,6 +715,32 @@ private:
         std::vector< SpaceJointHandle > spaceJoints;
         std::optional< Matrix > absPosition;
     };
+
+private:
+    void onModuleMove() {
+        _prepared = false;
+    }
+
+    void _clearModulePositions() {
+        for ( ModuleInfo& m : _modules ) {
+            m.absPosition = std::nullopt;
+            assert( m.module );
+            m.module->clearComponentPositions();
+        }
+        _prepared = false;
+    }
+
+    void _adoptModules() {
+        for ( ModuleInfo& m : _modules ) {
+            assert( m.module );
+            m.module->parent = this;
+            for ( auto& c : m.module->_components ) {
+                c.parent = m.module.get();
+            }
+        }
+    }
+
+    
 
     atoms::HandleSet< ModuleInfo > _modules;
     atoms::HandleSet< RoficomJoint > _moduleJoints;
