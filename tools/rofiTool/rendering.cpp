@@ -8,6 +8,7 @@
 #include <vtkAxesActor.h>
 #include <vtkCamera.h>
 #include <vtkCylinderSource.h>
+#include <vtkInteractorStyleTrackballCamera.h>
 #include <vtkMatrix4x4.h>
 #include <vtkNamedColors.h>
 #include <vtkNew.h>
@@ -76,9 +77,45 @@ vtkAlgorithmOutput* getComponentModel( ComponentType type ) {
     return cache[ type ]->GetOutputPort();
 }
 
-void setupRenderer( vtkRenderer& renderer ) {
-    renderer.SetBackground( 1.0, 1.0, 1.0 );
-    renderer.ResetCamera();
+void setupRenderWindow( vtkRenderer* renderer,
+                        vtkRenderWindow* renderWindow,
+                        vtkRenderWindowInteractor* renderWindowInteractor,
+                        const std::string& displayName ) {
+    assert( renderer );
+    assert( renderWindow );
+    assert( renderWindowInteractor );
+
+    renderer->SetBackground( 1.0, 1.0, 1.0 );
+    renderer->ResetCamera();
+
+    auto activeCamera = renderer->GetActiveCamera();
+    assert( activeCamera );
+    activeCamera->Zoom( 1.5 );
+    activeCamera->SetPosition( 0, 10, 5 );
+    activeCamera->SetViewUp( 0, 0, 1 );
+
+    renderWindow->SetSize( 1, 1 );
+    renderWindow->AddRenderer( renderer );
+    renderWindow->SetWindowName( displayName.c_str() );
+
+    // Setup main window loop
+    renderWindowInteractor->SetRenderWindow( renderWindow );
+    vtkNew< vtkInteractorStyleTrackballCamera > interactorStyle;
+    renderWindowInteractor->SetInteractorStyle( interactorStyle.Get() );
+    renderWindowInteractor->Initialize();
+}
+
+void addAxesWidget( vtkRenderWindowInteractor* renderWindowInteractor ) {
+    assert( renderWindowInteractor );
+
+    vtkNew< vtkOrientationMarkerWidget > widget;
+    widget->SetOutlineColor( 0.9300, 0.5700, 0.1300 );
+    vtkNew< vtkAxesActor > axes;
+    widget->SetOrientationMarker( axes.Get() );
+    widget->SetInteractor( renderWindowInteractor );
+    widget->SetViewport( 0.0, 0.0, 0.4, 0.4 );
+    widget->SetEnabled( 1 );
+    widget->InteractiveOn();
 }
 
 void buildTemporarySceneShoeOnly( vtkRenderer& renderer, ComponentType component ) {
@@ -169,30 +206,20 @@ void buildRofiWorldScene( vtkRenderer& renderer, const RofiWorld& world ) {
     }
 }
 
-void renderRofiWorld( const RofiWorld& world, const std::string& configName ) {
+void renderRofiWorld( const RofiWorld& world, const std::string& displayName ) {
     assert( world.isPrepared() && "The rofi world has to be prepared" );
     assert( world.isValid() && "The rofi world has to be valid" );
 
     vtkNew< vtkRenderer > renderer;
-    setupRenderer( *renderer.Get() );
-    buildRofiWorldScene( *renderer.Get(), world );
-
     vtkNew< vtkRenderWindow > renderWindow;
-    renderWindow->AddRenderer( renderer.Get() );
-    renderWindow->SetWindowName( ( "Preview of " + configName ).c_str() );
-
-    // Setup main window loop
     vtkNew< vtkRenderWindowInteractor > renderWindowInteractor;
-    renderWindowInteractor->SetRenderWindow( renderWindow.Get() );
+    setupRenderWindow( renderer.Get(),
+                       renderWindow.Get(),
+                       renderWindowInteractor.Get(),
+                       displayName );
+    addAxesWidget( renderWindowInteractor.Get() );
 
-    vtkNew< vtkAxesActor > axes;
-    vtkNew< vtkOrientationMarkerWidget > widget;
-    widget->SetOutlineColor( 0.9300, 0.5700, 0.1300 );
-    widget->SetOrientationMarker( axes.Get() );
-    widget->SetInteractor( renderWindowInteractor.Get() );
-    widget->SetViewport( 0.0, 0.0, 0.4, 0.4 );
-    widget->SetEnabled( 1 );
-    widget->InteractiveOn();
+    buildRofiWorldScene( *renderer.Get(), world );
 
     // Start main window loop
     renderWindow->Render();
@@ -328,27 +355,17 @@ void buildRofiWorldPointsScene( vtkRenderer& renderer, RofiWorld world, bool sho
     }
 }
 
-void renderPoints( RofiWorld world, const std::string& configName, bool showModules ) {
+void renderPoints( RofiWorld world, const std::string& displayName, bool showModules ) {
     vtkNew< vtkRenderer > renderer;
-    setupRenderer( *renderer.Get() );
-    buildRofiWorldPointsScene( *renderer.Get(), std::move( world ), showModules );
-
     vtkNew< vtkRenderWindow > renderWindow;
-    renderWindow->AddRenderer( renderer.Get() );
-    renderWindow->SetWindowName( ( "Preview of " + configName ).c_str() );
-
-    // Setup main window loop
     vtkNew< vtkRenderWindowInteractor > renderWindowInteractor;
-    renderWindowInteractor->SetRenderWindow( renderWindow.Get() );
+    setupRenderWindow( renderer.Get(),
+                       renderWindow.Get(),
+                       renderWindowInteractor.Get(),
+                       displayName );
+    addAxesWidget( renderWindowInteractor.Get() );
 
-    vtkNew< vtkAxesActor > axes;
-    vtkNew< vtkOrientationMarkerWidget > widget;
-    widget->SetOutlineColor( 0.9300, 0.5700, 0.1300 );
-    widget->SetOrientationMarker( axes.Get() );
-    widget->SetInteractor( renderWindowInteractor.Get() );
-    widget->SetViewport( 0.0, 0.0, 0.4, 0.4 );
-    widget->SetEnabled( 1 );
-    widget->InteractiveOn();
+    buildRofiWorldPointsScene( *renderer.Get(), std::move( world ), showModules );
 
     // Start main window loop
     renderWindow->Render();
