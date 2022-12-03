@@ -127,9 +127,13 @@ class NetworkManagerCli {
                 std::cout << proto->info() << std::endl;
             } else if ( cmd == "manage" ) {
                 ss >> cmd;
+                if ( !_netManager.findInterface( cmd ) )
+                    throw std::runtime_error( cmd + " not found, interface does not exist" );
                 _netManager.setProtocol( *proto, _netManager.interface( cmd ) );
             } else if ( cmd == "ignore" ) {
                 ss >> cmd;
+                if ( !_netManager.findInterface( cmd ) )
+                    throw std::runtime_error( cmd + " not found, interface does not exist" );
                 _netManager.removeProtocol( *proto, _netManager.interface( cmd ) );
             } else {
                 throw std::runtime_error( cmd + " is not a valid argument for protocol command" );
