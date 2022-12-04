@@ -11,23 +11,20 @@
 using namespace rofi::configuration;
 using namespace rofi::isoreconfig;
 
-RofiWorld parseRofiWorld( const std::string& path )
+RofiWorld parseRofiWorld( const std::string& inputFile )
 {
-    std::ifstream inputTarget;
-    inputTarget.open( path );
-    if (inputTarget.fail()) 
-    {
-        std::cerr << "Invalid path to rofiworld: '" << path << "'\n";
-        exit(1);
-    }
-    RofiWorld result = readOldConfigurationFormat( inputTarget );
-    
-    const auto identity = arma::mat(4, 4, arma::fill::eye);
-    assert( result.modules().size() > 0 );
-    connect< RigidJoint >( (*result.modules().begin()).module->bodies().front(), { 0, 0, 0 }, identity );
-    result.prepare().get_or_throw_as< std::runtime_error >();
+    auto cfgFile = std::ifstream( inputFile );
+    if ( !cfgFile.is_open() )
+        throw std::runtime_error( "Cannot open file '" + inputFile + "'" );
 
-    return result;
+    RofiWorld configuration;
+    if ( inputFile.ends_with( ".json" ) )
+        configuration = serialization::fromJSON( nlohmann::json::parse( cfgFile ) );
+    else 
+        configuration = readOldConfigurationFormat( cfgFile );
+
+    configuration.prepare().get_or_throw_as< std::runtime_error >();
+    return configuration;
 }
 
 // void saveToFile( const RofiWorld& world, const std::string& path )

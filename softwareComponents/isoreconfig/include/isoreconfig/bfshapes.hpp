@@ -23,25 +23,25 @@ void saveToFile( const RofiWorld& bot, const std::string& path );
 class Shapes
 {
     std::vector< RofiWorld > _visited;
-    std::vector< size_t > counted;
+    // std::vector< size_t > counted;
 
 public:
     Shapes() = default;
 
     bool contains( const RofiWorld& bot ) 
     {
-        size_t i = 0;
+        // size_t i = 0;
         for ( const RofiWorld& found : _visited )
         {
             if ( equalConfig( found, bot ) ) 
             {
-                saveToFile( bot, fmt::format( 
-                    "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/twoModStrict/{}-{}.json",
-                    i, counted[i] ) );
-                counted[i] += 1;
+                // saveToFile( bot, fmt::format( 
+                //     "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/outputConfigs/{}-{}.json",
+                //     i, counted[i] ) );
+                // counted[i] += 1;
                 return true;
             }
-            ++i;
+            // ++i;
         }
         return false;
     }
@@ -54,10 +54,10 @@ public:
 
     VisitedId insert( const RofiWorld& bot )
     {
-        saveToFile( bot, fmt::format( 
-                    "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/twoModStrict/{}-0.json",
-                    _visited.size() ) );
-        counted.push_back( 1 );
+        // saveToFile( bot, fmt::format( 
+        //             "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/outputConfigs/{}-0.json",
+        //             _visited.size() ) );
+        // counted.push_back( 1 );
         _visited.push_back( bot );
         return _visited.size() - 1;
     }

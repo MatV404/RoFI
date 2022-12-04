@@ -112,8 +112,8 @@ bool operator==( const RofiWorld& rw1, const RofiWorld& rw2 )
 
 bool equalConfig( const RofiWorld& rw1, const RofiWorld& rw2 )
 {
-    // return equalShape( rw1, rw2 ); // Shape equality
-    return rw1 == rw2; // Configuration equality
+    return equalShape( rw1, rw2 ); // Shape equality
+    // return rw1 == rw2; // Configuration equality
 }
 
 void generateParametersRec( std::vector< std::vector< float > >& result, std::vector< float >& current,
@@ -334,7 +334,7 @@ std::vector<RofiWorld> bfsShapes(
             assert( ( distance.find( current )->second == 0 && current == startId ) || 
                 layer == distance.find( current )->second - 1 );
             ++layer; rep.onUpdateLayer( layer );
-            std::cout << rep.toString() << "\n";
+            // std::cout << rep.toString() << "\n";
         }
 
         std::vector< RofiWorld > descendants = getDescendants( visited[current], step );
