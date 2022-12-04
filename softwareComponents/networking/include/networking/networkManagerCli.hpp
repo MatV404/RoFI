@@ -62,7 +62,18 @@ class NetworkManagerCli {
     // TODO: Do not leak function names in exceptions, just report what was parsed when error occurred
     void parseInterface( std::stringstream& ss ) {
         std::string name, cmd;
-        ss >> name;
+        ss >> cmd;
+        if ( cmd == "show" ) {
+            std::string sep = "";
+            for ( const auto& i : _netManager.interfaces() ) {
+                std::cout << sep << i.name() << " [" << ( i.isUp() ? "up" : "down" ) << "] ";
+                sep = ", ";
+            }
+            std::cout << std::endl;
+            return;
+        }
+
+        name = cmd;
         auto interface = _netManager.findInterface( name );
         if ( !interface ) {
             throw std::runtime_error( "interface " + name + " not found" );
@@ -222,25 +233,41 @@ class NetworkManagerCli {
         */
         void help() const {
             const char* helpmsg = 
-                "netmg  [ if | interface ]    <name>  show\n"
-                "                                     address show\n"                     // show addresses
-                "                                             get            <index>\n"   // get address on given index
-                "                                             add            <ip/mask>\n" // add address
-                "                                             [rm | remove]  <ip/mask>\n" // remove address
+                "netmg <COMPONENT> command...\n"
                 "\n"
-                "       table                 show\n"
-                "                             route   add  <ip/mask>  <interface-name> cost"
-                "                                     rm   <ip/mask>  <interface-name> cost"
+                "components:\n"
+                "\t if, interface              network interface\n"
+                "\t table                      routing table\n"
+                "\t forwarding-table           forwarding table (lwip)\n"
+                "\t proto, protocols           protocols within Network Manager\n"
+                "\t log, logs                  logs\n"
                 "\n"
-                "       forwarding-table      show\n"
+                "interface commands:\n"
+                "\t show                                         show name and state of all interfaces"
+                "\t <interface name> show                        show info about given interface\n"
+                "\t <interface name> address show                show IP addresses of given interface\n"
+                "\t <interface name> address get    <num>        show num-th IP address of given interface\n"
+                "\t <interface name> address add    <ip/mask>    set IP address to given interface\n"
+                "\t <interface name> address rm     <ip/mask>    remove IP address from given interface\n"
+                "\t <interface name> address remove <ip/mask>    set IP address to given interface\n"
                 "\n"
-                "       [ proto | protocol ]  show\n"
-                "                             <name>  show\n"                    // shows managed interfaces
-                "                                     manage <interface-name>\n" // set-up management
-                "                                     ignore <interface-name>\n" // set-down management
+                "table commands:\n"
+                "\t show                                         display the routing table\n"
+                "\t route add <ip/mask> <interface name> cost    add static route into the table\n"
+                "\t route rm  <ip/mask> <interface name> cost    remove static route into the table\n"
                 "\n"
-                "       [ log | logs ]        show\n"
-                "                             <name>  show\n"; // logs from the interface
+                "forwarding table commands:\n"
+                "\t show                  display the internal lwip's forwarding table\n"
+                "\n"
+                "protocol commands:\n"
+                "\t show                               display names of available protocols\n"
+                "\t <name> show                        display more detailed output of a single protocol\n"
+                "\t <name> manage <interface name>     run given protocol on chosen interface\n"
+                "\t <name> ignore <interface name>     stop given protocol on chosen interface\n"
+                "\n"
+                "log commands:\n"
+                "\t show                     display all logs\n"
+                "\t <interface name> show    display logs from given interface only\n";
             std::cout << helpmsg;
         }
     };
