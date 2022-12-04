@@ -30,14 +30,14 @@ RofiWorld parseRofiWorld( const std::string& path )
     return result;
 }
 
-void saveToFile( const RofiWorld& world, const std::string& path )
-{
-    auto jason = serialization::toJSON( world );
-    std::ofstream out(path);
-    // std::cout << jason.dump() << "\n";
-    out << jason.dump();
-    out.close();
-}
+// void saveToFile( const RofiWorld& world, const std::string& path )
+// {
+//     auto jason = serialization::toJSON( world );
+//     std::ofstream out(path);
+//     // std::cout << jason.dump() << "\n";
+//     out << jason.dump();
+//     out.close();
+// }
 
 int main(int argc, char** argv) 
 {

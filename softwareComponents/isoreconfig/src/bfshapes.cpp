@@ -3,7 +3,6 @@
 
 #include <isoreconfig/isomorphic.hpp>
 #include <isoreconfig/bfshapes.hpp>
-#include <configuration/serialization.hpp>
 
 using VisitedId = size_t;
 
@@ -35,9 +34,86 @@ bool withinBounds( const std::span< float >& values,
     return true;
 }
 
-bool equalConfig( const RofiWorld& bot1, const RofiWorld& bot2 )
+bool operator==( const Joint& j1, const Joint& j2 )
 {
-    return equalShape( bot1, bot2 );
+    return std::equal( 
+            j1.jointLimits().begin(), j1.jointLimits().end(), 
+            j2.jointLimits().begin() )
+        && std::equal( 
+            j1.positions().begin(), j1.positions().end(), 
+            j2.positions().begin() );
+}
+
+bool operator==( const RoficomJoint& rj1, const RoficomJoint& rj2 )
+{
+    return rj1.orientation == rj2.orientation
+        && rj1.sourceModule == rj2.sourceModule
+        && rj1.destModule == rj2.destModule
+        && rj1.sourceConnector == rj2.sourceConnector
+        && rj1.destConnector == rj2.destConnector
+        && std::equal( 
+            rj1.jointLimits().begin(), rj1.jointLimits().end(), 
+            rj2.jointLimits().begin() )
+        && std::equal( 
+            rj1.positions().begin(), rj1.positions().end(), 
+            rj2.positions().begin() );
+}
+
+bool operator==( const SpaceJoint& sj1, const SpaceJoint& sj2 )
+{
+    return *sj1.joint == *sj2.joint
+        // && sj1.refPoint == sj2.refPoint // does not work, is it neccessary?
+        && sj1.destModule == sj2.destModule 
+        && sj1.destComponent == sj2.destComponent;
+}
+
+bool operator==( const ComponentJoint& cj1, const ComponentJoint& cj2 )
+{
+    return *cj1.joint == *cj2.joint
+        && cj1.sourceComponent == cj2.sourceComponent
+        && cj1.destinationComponent == cj2.destinationComponent;
+}
+
+bool operator==( const Module& mod1, const Module& mod2 )
+{
+    return mod1.type == mod2.type
+        && mod1.getId() == mod2.getId()
+        // if modules have same type, we do not care about components?
+        // && std::equal( mod1.components().begin(), mod1.components().end(), mod2.components().begin() )
+        && std::equal( 
+            mod1.joints().begin(), mod1.joints().end(), 
+            mod2.joints().begin(),
+            []( const auto& cj1, const auto& cj2 ){ return cj1 == cj2; } );    
+}
+
+bool operator==( const RofiWorld::ModuleInfo& modInf1, const RofiWorld::ModuleInfo& modInf2 )
+{
+    // ignores std::vector< SpaceJointHandle > spaceJoints;
+    return *modInf1.module == *modInf2.module;
+}
+
+bool operator==( const RofiWorld& rw1, const RofiWorld& rw2 )
+{
+    // ignores atoms::HandleSet< SpaceJoint > _spaceJoints;
+    if ( rw1.modules().size() != rw2.modules().size() 
+        || rw1.roficomConnections().size() != rw2.roficomConnections().size()
+        || rw1.referencePoints().size() != rw2.referencePoints().size() )
+        return false;
+
+    return std::equal( 
+            rw1.modules().begin(), rw1.modules().end(), 
+            rw2.modules().begin(),
+            []( const auto& mod1, const auto& mod2 ){ return mod1 == mod2; } )
+        && std::equal( 
+            rw1.roficomConnections().begin(), rw1.roficomConnections().end(), 
+            rw2.roficomConnections().begin(),
+            []( const auto& rj1, const auto& rj2 ){ return rj1 == rj2; } );
+}
+
+bool equalConfig( const RofiWorld& rw1, const RofiWorld& rw2 )
+{
+    // return equalShape( rw1, rw2 ); // Shape equality
+    return rw1 == rw2; // Configuration equality
 }
 
 void generateParametersRec( std::vector< std::vector< float > >& result, std::vector< float >& current,
@@ -92,7 +168,7 @@ std::vector< RofiWorld > getDescendants(
                 // newBot.getModule(  modInf.module->getId() )->joints()[j].joint->changePositions( possRot );
 
                 // Skip rotation if it does not respect joint bounds
-                if ( !newBot.getModule(  modInf.module->getId() )->changeJointPositionsBy( j, possRot ).has_value() )
+                if ( !newBot.getModule(  modInf.module->getId() )->changeJointPositionsBy( int(j), possRot ).has_value() )
                     continue;
 
                 if ( newBot.prepare().has_value() && newBot.isValid() )
@@ -142,9 +218,13 @@ std::vector< RofiWorld > getDescendants(
                     && destMod == mod2 && rofiJoint.destConnector == comp2 ) ||
                     ( sourceMod == mod2 && rofiJoint.sourceConnector == comp2 
                     && destMod == mod1 && rofiJoint.destConnector == comp1 ) )
-                    { alreadyConnected = true; break; }
+                { 
+                    alreadyConnected = true; 
+                    break; 
+                }
             }
-            if ( alreadyConnected ) continue;
+            if ( alreadyConnected ) 
+                continue;
 
             auto newConn = std::tie( mod1, comp1, mod2, comp2, poss->second );
             possConnect.push_back( newConn );
@@ -165,7 +245,10 @@ std::vector< RofiWorld > getDescendants(
             assert( conn1mod1 != conn2mod1 || conn1comp1 != conn2comp1 );
             
             if ( conn1mod1 == conn2mod2 && conn1comp1 == conn2comp2 )
-                { add = false; break; }
+            { 
+                add = false; 
+                break; 
+            }
         }
         if ( add ) 
             noDupes.push_back( std::tie( conn1mod1, conn1comp1, conn1mod2, conn1comp2, conn1ori ) );
@@ -202,7 +285,6 @@ std::vector< RofiWorld > getPredecessors( const Shapes& visited,
     VisitedId current = target;
     
     while ( current != start ) {
-
         result.push_back( visited[current] );
         // current must always have a predecessor or given map is not correct
         assert( predecessor.contains( current ) );
@@ -252,7 +334,7 @@ std::vector<RofiWorld> bfsShapes(
             assert( ( distance.find( current )->second == 0 && current == startId ) || 
                 layer == distance.find( current )->second - 1 );
             ++layer; rep.onUpdateLayer( layer );
-            // std::cout << rep.toString() << "\n";
+            std::cout << rep.toString() << "\n";
         }
 
         std::vector< RofiWorld > descendants = getDescendants( visited[current], step );
@@ -260,7 +342,8 @@ std::vector<RofiWorld> bfsShapes(
 
         for ( const RofiWorld& child : descendants ) {
             rep.onNewDescendant( child );
-            if ( visited.contains( child ) ) continue;
+            if ( visited.contains( child ) ) 
+                continue;
 
             VisitedId childId = visited.insert( child ); rep.onUpdateVisited( visited );
             predecessor.insert({ childId, current }); rep.onUpdatePredecessors( predecessor );

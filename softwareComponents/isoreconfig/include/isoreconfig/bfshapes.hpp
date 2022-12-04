@@ -7,6 +7,9 @@
 
 #include <configuration/rofiworld.hpp>
 
+#include <fmt/format.h>
+#include <configuration/serialization.hpp>
+
 namespace rofi::isoreconfig {
 
 using namespace rofi::configuration;
@@ -14,20 +17,32 @@ using VisitedId = size_t;
 using Predecessors = std::unordered_map< VisitedId, VisitedId >;
 
 bool equalConfig( const RofiWorld& bot1, const RofiWorld& bot2 );
+bool operator==( const RofiWorld& rw1, const RofiWorld& rw2 );
 
+void saveToFile( const RofiWorld& bot, const std::string& path );
 class Shapes
 {
     std::vector< RofiWorld > _visited;
+    std::vector< size_t > counted;
 
 public:
     Shapes() = default;
 
-    bool contains( const RofiWorld& bot ) const
+    bool contains( const RofiWorld& bot ) 
     {
+        size_t i = 0;
         for ( const RofiWorld& found : _visited )
+        {
             if ( equalConfig( found, bot ) ) 
+            {
+                saveToFile( bot, fmt::format( 
+                    "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/twoModStrict/{}-{}.json",
+                    i, counted[i] ) );
+                counted[i] += 1;
                 return true;
-            
+            }
+            ++i;
+        }
         return false;
     }
 
@@ -39,6 +54,10 @@ public:
 
     VisitedId insert( const RofiWorld& bot )
     {
+        saveToFile( bot, fmt::format( 
+                    "/home/jarom/RoFI/softwareComponents/isoreconfig/configs/twoModStrict/{}-0.json",
+                    _visited.size() ) );
+        counted.push_back( 1 );
         _visited.push_back( bot );
         return _visited.size() - 1;
     }

@@ -425,9 +425,21 @@ void testThree()
     ));
 }
 
+void testStrictEquality()
+{
+    assert( A1 == A1 );
+    assert( A1 != A2 );
+    assert( A1 != A3 );
+    assert( A1 != A4 );
+
+    RofiWorld A1Copy = A1;
+    assert( A1Copy == A1 );
+}
+
 int main(int argc, char** argv) 
 {
     testOne90();
     testThree();
+    testStrictEquality();
     std::cout << "All tests have passed.\n";
 }
