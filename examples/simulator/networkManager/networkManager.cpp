@@ -119,7 +119,7 @@ int main() {
 
     // ToDo: Maybe addAddress might return an optional< index > instead of bool?
     //       Then you could write "just" net.interface( "rl0" ).get().getAddress( index ). 
-    std::cout << "address: " << net.interface( "rl0" ).get().getAddress().front().first << std::endl;
+    std::cout << "address: " << net.interface( "rl0" ).getAddress().front().first << std::endl;
     net.setUp();
 
     auto* pcb = setUpListener();
