@@ -120,6 +120,24 @@ class NetworkManagerCli {
             _netManager.rmRoute( ip, mask, ifname );
     }
 
+    void setProtocol( Protocol* proto, bool manageRequest, const std::string& ifName ) {
+        assert( proto && "networkManagerCli got nullptr" );
+
+        if ( ifName == "all" ) {
+            for ( auto& i : _netManager.interfaces() ) {
+                if ( manageRequest )
+                    _netManager.setProtocol( *proto, i );
+                else
+                    _netManager.removeProtocol( *proto, i );
+            }
+        } else {
+            if ( manageRequest )
+                _netManager.setProtocol( *proto, _netManager.interface( ifName ) );
+            else
+                _netManager.removeProtocol( *proto, _netManager.interface( ifName ) );
+        }
+    }
+
     void parseProtocol( std::stringstream& ss ) {
         std::string cmd, name;
         ss >> cmd;
@@ -136,16 +154,12 @@ class NetworkManagerCli {
             ss >> cmd;
             if ( cmd == "show"  ) {
                 std::cout << proto->info() << std::endl;
-            } else if ( cmd == "manage" ) {
-                ss >> cmd;
-                if ( !_netManager.findInterface( cmd ) )
+            } else if ( cmd == "manage" || cmd == "ignore" ) {
+                std::string interface;
+                ss >> interface;
+                if ( interface != "all" && !_netManager.findInterface( interface ) )
                     throw std::runtime_error( cmd + " not found, interface does not exist" );
-                _netManager.setProtocol( *proto, _netManager.interface( cmd ) );
-            } else if ( cmd == "ignore" ) {
-                ss >> cmd;
-                if ( !_netManager.findInterface( cmd ) )
-                    throw std::runtime_error( cmd + " not found, interface does not exist" );
-                _netManager.removeProtocol( *proto, _netManager.interface( cmd ) );
+                setProtocol( proto, cmd == "manage", interface );
             } else {
                 throw std::runtime_error( cmd + " is not a valid argument for protocol command" );
             }
@@ -263,7 +277,9 @@ class NetworkManagerCli {
                 "\t show                               display names of available protocols\n"
                 "\t <name> show                        display more detailed output of a single protocol\n"
                 "\t <name> manage <interface name>     run given protocol on chosen interface\n"
+                "\t <name> manage all                  run given protocol on all interfaces\n"
                 "\t <name> ignore <interface name>     stop given protocol on chosen interface\n"
+                "\t <name> ignore all                  stop given protocol on all interfaces\n"
                 "\n"
                 "log commands:\n"
                 "\t show                     display all logs\n"
