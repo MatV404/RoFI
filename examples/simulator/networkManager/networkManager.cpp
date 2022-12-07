@@ -50,7 +50,7 @@ udp_pcb* setUpListener() {
     return pcb;
 }
 
-std::pair< Ip6Addr, std::string > getReceiverMsg() {
+std::pair< Ip6Addr, std::string > getMsgToSend() {
     std::string ip, msg;
     std::cout << "send message to: ";
     std::getline( std::cin, ip );
@@ -74,6 +74,23 @@ void sendMessage( const Ip6Addr& ip, const std::string& msg, udp_pcb* pcb ) {
     err_t res = udp_sendto( pcb, packet.release(), &ip, 7777 );
     if ( res != ERR_OK ) {
         std::cout << "send failed with " << lwip_strerr( res ) << std::endl;
+    }
+}
+
+void handleConnector( bool connect ) {
+    int connectorIdx;
+    auto rofi = RoFI::getLocalRoFI();
+    std::cout << "which connector do you want to disconnect? (0 - "
+              << rofi.getDescriptor().connectorCount << "): ";
+    std::cin >> connectorIdx;
+    if ( connectorIdx >= 0 && connectorIdx < rofi.getDescriptor().connectorCount ) {
+        if ( connect )
+            rofi.getConnector( connectorIdx ).connect();
+        else {
+            rofi.getConnector( connectorIdx ).disconnect();
+        }
+    } else {
+        std::cout << "index out of range! ignoring..." << std::endl;
     }
 }
 
@@ -135,8 +152,10 @@ int main() {
 
         try {
             if ( line == "msg" || line == "message" ) {
-                auto [ ip, msg ] = getReceiverMsg();
+                auto [ ip, msg ] = getMsgToSend();
                 sendMessage( ip, msg, pcb );
+            } else if ( line == "connect" || line == "disconnect" ) {
+                handleConnector( line == "connect" );
             } else if ( netcli.command( line ) ) {
                 // Ok, command parsed
             } else {
