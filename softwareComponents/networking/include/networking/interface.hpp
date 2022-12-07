@@ -373,11 +373,15 @@ public:
     /**
      * \brief Function that returns the amount of data sent (in bytes).
     */
-    long long unsigned dataSent() const { return _sent; }
+    long long unsigned dataSent() const {
+        return isVirtual() ? 0 : _sent;
+    }
     /**
      * \brief Function that returns the amount of data received (in bytes).
     */
-    long long unsigned dataReceived() const { return _received; }
+    long long unsigned dataReceived() const {
+        return isVirtual() ? 0 : _received;
+    }
 
     friend bool operator==( const Interface& i1, const Interface& i2 );
     friend std::ostream& operator<<( std::ostream& o, const Interface& i );
