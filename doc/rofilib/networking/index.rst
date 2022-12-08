@@ -1,7 +1,7 @@
 Netwokring
 ==========
 
-Networking is available via [lwip](https://www.nongnu.org/lwip/2_1_x/index.html) library onto which
+Networking is available via `lwip <https://www.nongnu.org/lwip/2_1_x/index.html>` library onto which
 platform's networking is built. By default, IPv6 protocol is used.
 
 The networking is represented by the class :cpp:class:`NetworkManager <rofi::net::NetworkManager>`
