@@ -34,10 +34,6 @@ class NetworkManager {
                 case Protocol::Route::RM:
                     res = _routingTable.remove( rec ) || res;
                     break;
-                case Protocol::Route::CHANGE:
-                    ROFI_UNREACHABLE( "Change is not yet implemented" );
-                    // res = _routingTable.update( rec ) || res;
-                    break;
                 default:
                     ROFI_UNREACHABLE( "Route was modified" );
                     break;
@@ -355,12 +351,12 @@ public:
                             return 0;
 
                         bool changed = false;
-                        auto res = proto.onMessage( interface.name(), PBuf::own( p ) );
-                        if ( res == Protocol::Result::INTERFACE_UPDATE || res == Protocol::Result::ALL_UPDATE ) {
-                            changed = processConfigUpdates( proto.getInterfaceUpdates() );
-                        }
-                        if ( res == Protocol::Result::ROUTE_UPDATE || res == Protocol::Result::ALL_UPDATE ) {
-                            changed = processRouteUpdates( proto, proto.getRTEUpdates() ) || changed;
+                        bool res = proto.onMessage( interface.name(), PBuf::own( p ) );
+                        if ( res ) {
+                            if ( proto.hasConfigUpdates() )
+                                changed = processConfigUpdates( proto.getInterfaceUpdates() );
+                            if ( proto.hasRouteUpdates() )
+                                changed = processRouteUpdates( proto, proto.getRTEUpdates() ) || changed;
                         }
 
                         if ( changed ) {
