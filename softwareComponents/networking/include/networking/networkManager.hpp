@@ -19,8 +19,6 @@ namespace rofi::net {
 class NetworkManager {
     Logger _logger;
     std::deque< Interface > _interfaces;
-    // running protocols: < < name of interface, name of protocol >, handle >
-    // TODO: Make this garbage readable
     RoutingTable _routingTable;
     std::vector< std::unique_ptr< Protocol > > _protocols;
 
@@ -58,8 +56,8 @@ class NetworkManager {
                                     interface.sendProtocol( proto->address(), std::move( msg ) );
                         }, nullptr );
             if ( changed ) {
-                processConfigUpdates( proto->getInterfaceUpdates() );
-                processRouteUpdates( *proto, proto->getRTEUpdates() );
+                processConfigUpdates( proto->getConfigUpdates() );
+                processRouteUpdates( *proto, proto->getRouteUpdates() );
             }
         }
 
@@ -126,11 +124,17 @@ class NetworkManager {
         if ( !protocol )
             return;
 
-        if ( !protocol->getInterfaceUpdates().empty() || !protocol->getRTEUpdates().empty() ) {
-            processConfigUpdates( protocol->getInterfaceUpdates() );
-            processRouteUpdates( *protocol, protocol->getRTEUpdates() );
-            propagateRouteUpdates( protocol );
+        bool b = false;
+        if ( protocol->hasConfigUpdates() ) {
+            processConfigUpdates( protocol->getConfigUpdates() );
+            b = true;
         }
+        if ( protocol->hasRouteUpdates() ) {
+            processRouteUpdates( *protocol, protocol->getRouteUpdates() );
+            b = true;
+        }
+        if ( b )
+            propagateRouteUpdates( protocol );
     }
 
     void onInterfaceChange( const Interface* i, hal::ConnectorEvent e ) {
@@ -354,9 +358,9 @@ public:
                         bool res = proto.onMessage( interface.name(), PBuf::own( p ) );
                         if ( res ) {
                             if ( proto.hasConfigUpdates() )
-                                changed = processConfigUpdates( proto.getInterfaceUpdates() );
+                                changed = processConfigUpdates( proto.getConfigUpdates() );
                             if ( proto.hasRouteUpdates() )
-                                changed = processRouteUpdates( proto, proto.getRTEUpdates() ) || changed;
+                                changed = processRouteUpdates( proto, proto.getRouteUpdates() ) || changed;
                         }
 
                         if ( changed ) {
@@ -372,9 +376,9 @@ public:
 
                 // proto addInterface adds updates into RTEUpdates
                 rteChanged = proto.addInterface( interface ) || rteChanged;
-                rteChanged = processConfigUpdates( proto.getInterfaceUpdates() ) || rteChanged;
+                rteChanged = processConfigUpdates( proto.getConfigUpdates() ) || rteChanged;
                 // we pick those updates and add new records / remove old ones in the Routing Table
-                rteChanged = processRouteUpdates( proto, proto.getRTEUpdates() ) || rteChanged;
+                rteChanged = processRouteUpdates( proto, proto.getRouteUpdates() ) || rteChanged;
                 // and clear updates which we extracted in the previous step
                 proto.clearUpdates();
                 break;

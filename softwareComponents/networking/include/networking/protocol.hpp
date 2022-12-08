@@ -73,11 +73,11 @@ public:
      * 
      * \return A vector of pairs with the type of change (e.g., a new route) and its RoutingTable::Record to be added.
      * 
-     * This function is called in case `onMessage` returns either `ROUTE_UPDATE` or `ALL_UPDATE`. The default
+     * This function is called in case `onMessage` and `hasRouteUpdates` return `true`. The default
      * implementation returns an empty vector, so it is not necessary to override this for non-routing protocols.
      * 
     */
-    virtual std::vector< std::pair< Route, RoutingTable::Record > > getRTEUpdates() const { return {}; };
+    virtual std::vector< std::pair< Route, RoutingTable::Record > > getRouteUpdates() const { return {}; };
 
     /**
      * \brief Function that returns true if there are any pending configuration updates.
@@ -90,10 +90,10 @@ public:
      * \return A vector of pairs with the type of change (e.g., a new IP) and its `ConfigChange` with
      * all necessary information.
      * 
-     * This function is called in case `onMessage` returns either `INTERFACE_UPDATE` or `ALL_UPDATE`. The default
+     * This function is called in case `onMessage` and `hasConfigUpdates` return `true`. The default
      * imlementation return an empty vector, so it is not necessary to override this for routing-only protocols.
     */
-    virtual std::vector< std::pair< ConfigAction, ConfigChange > > getInterfaceUpdates() const { return {}; }
+    virtual std::vector< std::pair< ConfigAction, ConfigChange > > getConfigUpdates() const { return {}; }
 
     /**
      * \brief Clear any (cached) updates.

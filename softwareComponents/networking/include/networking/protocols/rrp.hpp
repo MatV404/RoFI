@@ -285,7 +285,7 @@ public:
 
     virtual bool hasRouteUpdates() const override { return !_updates.empty(); }
 
-    virtual std::vector< std::pair< Route, RoutingTable::Record > > getRTEUpdates() const override {
+    virtual std::vector< std::pair< Route, RoutingTable::Record > > getRouteUpdates() const override {
         return _updates;
     }
 

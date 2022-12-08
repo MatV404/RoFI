@@ -81,7 +81,7 @@ public:
 
     virtual bool hasConfigUpdates() const override { return !_confChanges.empty(); }
 
-    virtual std::vector< std::pair< ConfigAction, ConfigChange > > getInterfaceUpdates() const {
+    virtual std::vector< std::pair< ConfigAction, ConfigChange > > getConfigUpdates() const {
         return _confChanges;
     }
 
