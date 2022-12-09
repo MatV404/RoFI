@@ -30,7 +30,7 @@ class SimplePeriodic : public Protocol {
         int count = 0;
         for ( auto& r : records ) {
             auto g = r.best();
-            if ( !g || g->name() == interfaceName )
+            if ( !g || ( g->name() == interfaceName && g->cost() != 0 ) )
                 continue;
             count++;
         }
@@ -41,7 +41,7 @@ class SimplePeriodic : public Protocol {
 
         for ( auto& r : records ) {
             auto g = r.best();
-            if ( !g || g->name() == interfaceName )
+            if ( !g || ( g->name() == interfaceName && g->cost() != 0 ) )
                 continue;
 
             as< Ip6Addr >( data ) = r.ip();
