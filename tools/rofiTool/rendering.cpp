@@ -270,64 +270,46 @@ void addPointToScene( vtkRenderer& renderer,
 void buildRofiWorldPointsScene( vtkRenderer& renderer, RofiWorld world, bool showModules ) {
     using namespace rofi::isoreconfig;
 
-    std::array< Positions, 2 > pts = decomposeRofiWorld( world );
+    std::array< Points, 2 > origPts = decomposeRofiWorld( world );
 
     // merge [0] module points and [1] connection points
-    for ( const Matrix& pos : pts[ 1 ] ) {
-        pts[ 0 ].push_back( pos );
-    }
+    origPts[0].reserve( origPts[0].size() + origPts[1].size() );
+    for ( const Vector& pt : origPts[1] )
+        origPts[0].push_back( pt ); 
 
-    arma::mat coeff;    // principal component coefficients
-    arma::mat score;    // projected data - points in new coordinate system
-    arma::vec latent;   // eigenvalues of the covariance matrix of X - eigenvectors for PCA space
-    arma::vec tsquared; // Hotteling's statistic for each sample
-    princomp( coeff, score, latent, tsquared, cloudToScore( positionsToCloud( pts[ 0 ] ) ) );
-
-    auto determinant = det( coeff );
-    assert( std::abs( std::abs( determinant ) - 1 ) < ERROR_MARGIN );
-    // If transformation is a reflection, reflect back along YZ plane
-    // (otherwise there are rendering issues with modules)
-    if ( determinant < 0 ) {
-        score *= arma::mat{ { -1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
-        coeff *= arma::mat{ { -1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
-    }
-
-    Positions pos = cloudToPositions( scoreToCloud( score ) );
-    assert( pos.size() == pts[ 0 ].size() );
+    // Transform points to PCA coordinate system
+    Cloud cop( origPts[0] );
+    cop.normalize();
+    Points newPts = cop.toPoints();
+    assert( newPts.size() == origPts[0].size() );
 
     // Show module points (colour depends on index)
-    assert( pts[ 0 ].size() >= pts[ 1 ].size() );
-    for ( size_t i = 0; i < pts[ 0 ].size() - pts[ 1 ].size(); ++i ) {
-        addPointToScene( renderer, pos[ i ], getModuleColor( int( i ) ) );
-    }
+    assert( origPts[0].size() >= origPts[1].size() );
+    for ( size_t i = 0; i < origPts[0].size() - origPts[1].size(); ++i )
+        addPointToScene( renderer, pointMatrix( newPts[i] ), getModuleColor( int(i) ) );
 
     // Show connector points (green)
-    for ( size_t i = pts[ 0 ].size() - pts[ 1 ].size(); i < pos.size(); ++i ) {
-        addPointToScene( renderer, pos[ i ], { 0, 1, 0 }, 1 / 90.0 );
-    }
+    for ( size_t i = origPts[0].size() - origPts[1].size(); i < newPts.size(); ++i )
+        addPointToScene( renderer, pointMatrix( newPts[i] ), { 0, 1, 0 }, 1 / 90.0 );
 
-    // Show centroid (black)
-    addPointToScene( renderer, centroid( pos ), { 0, 0, 0 } );
+    // Show centroid (black) - PCA shifts centroid to (0, 0, 0)
+    addPointToScene( renderer, arma::eye( 4, 4 ), { 0, 0, 0 } );
 
-    if ( !showModules )
-        return;
+    if ( !showModules ) return;
+    
+    // Get and extend transformation to 4x4 matrix
+    arma::mat transf = cop.transformation();
+    transf.resize( 4, 4 );
+    transf.row(3) = { 0, 0, 0, 1 };
+    transf.col(3) = { 0, 0, 0, 1 };
 
-    // Transpose and extend <coeff> to 4x4 matrix
-    // (transposed <coeff> is PCA transformation)
-    Matrix transf = arma::eye( 4, 4 );
-    for ( int i = 0; i < 3; ++i ) {
-        for ( int j = 0; j < 3; ++j ) {
-            transf( i, j ) = coeff( j, i );
-        }
-    }
-
-    // Translate reference points by the initial centroid in the direction of transf
-    Matrix translation = matrices::translate( transf * ( -centroid( pts[ 0 ] ).col( 3 ) ) );
-
-    // Transform rofi world reference points to new PCA coordinate system
-    for ( auto j = world.referencePoints().begin(); j != world.referencePoints().end(); ++j ) {
-        Vector newRefPoint = translation * j->refPoint;
-
+    Vector oldCentroid = centroid( origPts[0] );
+    // Transform configuration reference points to new PCA coordinate system
+    for ( auto j = world.referencePoints().begin(); j != world.referencePoints().end(); ++j )
+    {
+        Vector newRefPoint = transf * ( j->refPoint - oldCentroid );
+        newRefPoint(3) = 0;
+        
         // Affix new reference point in new coordinate system <transf>
         const Component& comp = world.getModule( j->destModule )->components()[ j->destComponent ];
         world.disconnect( j.get_handle() );
@@ -335,7 +317,7 @@ void buildRofiWorldPointsScene( vtkRenderer& renderer, RofiWorld world, bool sho
     }
 
     auto result = world.prepare();
-    assert( result );
+    result.get_or_throw_as< std::runtime_error >();
 
     // get active (i.e. connected) connectors for each module within RofiWorld
     std::map< ModuleId, std::set< int > > activeConns;

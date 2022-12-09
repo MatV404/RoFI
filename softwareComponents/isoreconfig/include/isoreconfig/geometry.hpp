@@ -1,5 +1,6 @@
 #include <array>
 #include <cassert>
+#include <unordered_set>
 #include <vector>
 
 #include <armadillo>

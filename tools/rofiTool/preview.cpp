@@ -29,7 +29,8 @@ void preview( Dim::Cli & cli )
         return;
     }
 
-    affixRofiWorld( *world );
+    if ( world->referencePoints().empty() )
+        affixRofiWorld( *world );
 
     if ( auto valid = world->validate(); !valid ) {
         cli.fail( EXIT_FAILURE, "Invalid rofi world", valid.assume_error() );

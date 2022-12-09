@@ -24,7 +24,8 @@ void check( Dim::Cli & cli )
         return;
     }
 
-    affixRofiWorld( *world );
+    if ( world->referencePoints().empty() )
+        affixRofiWorld( *world );
 
     if ( !world->validate() ) {
         exit( EXIT_FAILURE ); // Avoid dimcli error message
