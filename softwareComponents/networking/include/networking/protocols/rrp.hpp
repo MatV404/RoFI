@@ -56,7 +56,7 @@ class RRP : public Protocol {
     std::vector< std::reference_wrapper< const Interface > > _managedInterfaces;
     std::set< Interface::Name > _stubInterfaces;
     std::vector< Update > _updates;
-    // interface name, routing update, record -> on which interface the Protocol::Route originated
+
     std::vector< std::pair< Interface::Name, Update > > _toSendExcept;
     std::map< Interface::Name, std::vector< Update > > _toSendFrom;
     std::map< Interface::Name, Command > _interfacesCommands;
@@ -306,15 +306,13 @@ public:
     }
 
     virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
-        assert( manages( interface ) && "onInterfaceEvent within protocol got unmanaged interface" );
+        assert( manages( interface ) && "onInterfaceEvent within RRP got unmanaged interface" );
 
         bool res = false;
         if ( connected ) {
-            res = addInterface( interface );
+            res = _addInterface( interface );
         } else {
-            res = removeInterface( interface );
-            // removeInterface removes the interface from the managed ones, but we do not want this
-            _managedInterfaces.push_back( interface );
+            res = _removeInterface( interface );
         }
 
         return res;
@@ -366,7 +364,6 @@ public:
     }
 
     virtual bool addInterface( const Interface& interface ) override {
-        // TODO: add asserts
         if ( manages( interface ) ) // interface is already managed
             return false;
 
