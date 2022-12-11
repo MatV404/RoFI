@@ -29,6 +29,18 @@ using namespace rofi::net;
  * > netmg table show
 */
 
+void printHelp() {
+    const char* msg =
+        "There are three commands available.\n"
+        "\t netmg <command> .... control the networking (NetworkManager)\n"
+        "\t msg ................ send a message (starts an interactive session)\n"
+        "\t message ............ send a message (same as msg above)\n"
+        "\t connect ............ connect a connector of the local RoFI (starts an interactive session\n"
+        "\t disconnect ......... complementary to the previous action\n"
+        "\t help | ?............ display this message\n";
+    std::cout << msg;
+}
+
 void onMessage(  void*, struct udp_pcb*, struct pbuf* p, const ip6_addr_t* addr, u16_t ) {
     if ( !p || !addr )
         return;
@@ -141,13 +153,17 @@ int main() {
     */
 
     std::string line;
-    std::cout << "> ";
+    std::cout << "for help type help or ?\n> ";
     while ( std::getline( std::cin, line ) ) {
         if ( line.empty() ) {
             std::cout << "> ";
             continue;
         } else if ( line == "end" || line == "q" || line == "quit" ) {
             break;
+        } else if ( line == "?" || line == "help" ) {
+            printHelp();
+            std::cout << "> ";
+            continue;;
         }
 
         try {
