@@ -55,6 +55,10 @@
 #define LWIP_IPV6_MLD             1
 #define LWIP_RAW                  1
 
+#define LWIP_IPV6_DHCP6           1
+#define ND6_RA_FLAG_MANAGED_ADDR_CONFIG  1
+#define LWIP_IPV6_AUTOCONFIG      1
+
 #define LWIP_DEBUG                1
 #define IP6_DEBUG                 1
 #define RAW_DEBUG                 1
