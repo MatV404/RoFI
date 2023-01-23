@@ -1,33 +1,96 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-if [[ $# -ne 2 ]] ; then
-    >&2 echo "Expected 2 args: <input_world_file> <goal_world_file>"
-    exit 1
-fi
+import argparse
+import os
+import subprocess
+import sys
+import tempfile
+from datetime import datetime
+from typing import List
 
-if [ -z "$ROFI_BUILD_DIR" ]; then
-    >&2 echo "ROFI_BUILD_DIR is not set. Are you in RoFI environment?";
-    exit 1;
-fi
 
-TMP_DIR="$ROFI_BUILD_DIR/desktop/tmp"
-mkdir -p "$TMP_DIR" || exit 1
+def convert(input_world_file: str, output_world_file: str, input_format: str = 'voxel', output_format: str = 'voxel'):
+    try:
+        subprocess.run(['rofi-convert', input_world_file, output_world_file,
+                        '--input-format', input_format,
+                        '--output-format', output_format,
+                        ],
+                       stdout=sys.stderr,
+                       check=True)
+    except subprocess.CalledProcessError as _:
+        print(f"Error while converting '{input_world_file}' (format: {input_format})",
+              f"to '{output_world_file}' (format: {output_format})",
+              file=sys.stderr)
+        exit(1)
 
-INIT_VOXEL_FILE=$(mktemp "$TMP_DIR/tmp-init_voxel_world.XXXXXX.json")
-GOAL_VOXEL_FILE=$(mktemp "$TMP_DIR/tmp-goal_voxel_world.XXXXXX.json")
-RESULT_FILE=$(mktemp "$TMP_DIR/tmp-result_voxel_worlds.XXXXXX.json")
-trap "rm -f \"$INIT_VOXEL_FILE\" \"$GOAL_VOXEL_FILE\" \"$RESULT_FILE\"" EXIT INT QUIT TERM
 
-rofi-convert --of=voxel "$1" "$INIT_VOXEL_FILE" \
-    || { >&2 echo -e "\nError while converting init world"; exit 1; }
-rofi-convert --of=voxel "$2" "$GOAL_VOXEL_FILE" \
-    || { >&2 echo -e "\nError while converting goal world"; exit 1; }
+def voxel_reconfig(init_voxel_file: str, goal_voxel_file: str):
+    try:
+        print("Starting voxel reconfiguration at",
+              datetime.now().strftime("%T.%f"), file=sys.stderr)
+        subprocess.run(["rofi-voxel_reconfig", init_voxel_file, goal_voxel_file],
+                       check=True)
+        print("Ended voxel reconfiguration at",
+              datetime.now().strftime("%T.%f"), file=sys.stderr)
+    except subprocess.CalledProcessError as _:
+        print(f"Error while running voxel reconfig",
+              file=sys.stderr)
+        exit(1)
 
-echo "Starting voxel reconfiguration at `date +"%T.%3N"`"
-rofi-voxel_reconfig "$INIT_VOXEL_FILE" "$GOAL_VOXEL_FILE" > "$RESULT_FILE" \
-    || { >&2 echo -e "\nError while running reconfiguration algorithm"; exit 1; }
-echo "Ended voxel reconfiguration at `date +"%T.%3N"`"
 
-rofi-tool preview --seq --format=voxel "$RESULT_FILE"
+def convert_and_reconfig(init_world_file: str, goal_world_file: str, init_format: str, goal_format: str):
+    assert init_world_file != '-' or goal_world_file != '-'
 
-rm -f "$INIT_VOXEL_FILE" "$GOAL_VOXEL_FILE" "$RESULT_FILE"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        if init_format == 'voxel':
+            init_voxel_file = init_world_file
+        else:
+            init_voxel_file = tempfile.NamedTemporaryFile(suffix='.json',
+                                                          dir=tmp_dir).name
+            convert(init_world_file, init_voxel_file, input_format=init_format)
+
+        if goal_format == 'voxel':
+            goal_voxel_file = goal_world_file
+        else:
+            goal_voxel_file = tempfile.NamedTemporaryFile(suffix='.json',
+                                                          dir=tmp_dir).name
+            convert(goal_world_file, goal_voxel_file, input_format=goal_format)
+
+        voxel_reconfig(init_voxel_file, goal_voxel_file)
+
+
+def check_input_files(parser: argparse.ArgumentParser, files: List[str]):
+    if files.count('-') > 1:
+        parser.error("multiple input file arguments have value '-' (stdin)")
+
+    for file in files:
+        if file == '-':
+            return
+        if not os.path.exists(file):
+            parser.error("can't open '{filename}': No such file or directory")
+        if not os.path.isfile(file):
+            parser.error("can't open '{filename}': Is a directory")
+        if not os.access(file, os.R_OK):
+            parser.error("can't open '{filename}': Is not readable")
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("init_world_file", type=str,
+                        help="Path to the init world file ('-' for stdin)")
+    parser.add_argument("goal_world_file", type=str,
+                        help="Path to the goal world file ('-' for stdin)")
+    parser.add_argument("--init-format", '--if', type=str, default='json',
+                        choices=['json', 'voxel', 'old'],
+                        help="Format of the init world file")
+    parser.add_argument("--goal-format", '--gf', type=str, default='json',
+                        choices=['json', 'voxel', 'old'],
+                        help="Format of the goal world file")
+    parser.add_argument("--format", '-f', type=str,
+                        choices=['json', 'voxel', 'old'],
+                        help="Format of world files (exclusive with --init-format and --goal-format")
+    args = parser.parse_args()
+    check_input_files(parser, [args.init_world_file, args.goal_world_file])
+
+    convert_and_reconfig(args.init_world_file, args.goal_world_file,
+                         args.init_format, args.goal_format)
