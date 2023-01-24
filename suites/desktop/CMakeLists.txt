@@ -7,7 +7,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} $ENV{ROFI_ROOT}/releng/cmake)
 option(BUILD_SMTRECONFIG "Build SMT-based reconfiguration library." FALSE)
 option(BUILD_HEADLESS "Build only parts of the project, that can run headlessly." FALSE)
 option(BUILD_GAZEBO "Build parts that require gazebo libraries." TRUE)
-option(BUILD_RUST "Build parts that contain or depend on Rust." TRUE)
+# option(BUILD_RUST "Build parts that contain or depend on Rust." TRUE)
 include(ColoredOutput)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -116,20 +116,20 @@ if(NOT magic_enum_POPULATED)
   add_subdirectory(${magic_enum_SOURCE_DIR} ${magic_enum_BINARY_DIR})
 endif()
 
-if (${BUILD_RUST})
-  FetchContent_Declare(
-    corrosion
-    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion
-    GIT_TAG v0.2.2
-  )
-  FetchContent_GetProperties(corrosion)
-  if(NOT corrosion_POPULATED)
-    FetchContent_Populate(corrosion)
-    add_subdirectory(${corrosion_SOURCE_DIR} ${corrosion_BINARY_DIR})
-  endif()
+# if (${BUILD_RUST})
+#   FetchContent_Declare(
+#     corrosion
+#     GIT_REPOSITORY https://github.com/corrosion-rs/corrosion
+#     GIT_TAG v0.2.2
+#   )
+#   FetchContent_GetProperties(corrosion)
+#   if(NOT corrosion_POPULATED)
+#     FetchContent_Populate(corrosion)
+#     add_subdirectory(${corrosion_SOURCE_DIR} ${corrosion_BINARY_DIR})
+#   endif()
 
-  include(RustTests)
-endif()
+#   include(RustTests)
+# endif()
 
 FetchContent_Declare(
   cxxopts
@@ -204,6 +204,7 @@ add_component(lwipcore)
 # Temporary alias:
 add_library(idf::lwip ALIAS lwipcore)
 add_component(networking)
+add_component(leadership)
 add_component(snake_reconfig)
 
 if (${BUILD_GAZEBO})
@@ -227,9 +228,9 @@ if (${BUILD_GAZEBO})
   add_library(rofi::hal ALIAS rofi_hal_sim)
 endif()
 
-if (${BUILD_RUST})
-  add_component(rust-rofi_voxel)
-endif()
+# if (${BUILD_RUST})
+#   add_component(rust-rofi_voxel)
+# endif()
 
 
 add_tool(convert)
@@ -254,9 +255,9 @@ if (${BUILD_GAZEBO})
   endif()
 endif()
 
-if (${BUILD_RUST})
-  add_tool(rust-rofi_voxel_reconfig)
-endif()
+# if (${BUILD_RUST})
+#   add_tool(rust-rofi_voxel_reconfig)
+# endif()
 
 
 if (${BUILD_GAZEBO})
