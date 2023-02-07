@@ -4,6 +4,7 @@
 
 #include <echo.hpp>
 #include <simpleElect.hpp>
+#include <traverseElect.hpp>
 
 #include <lwip/udp.h>
 #include <iostream>
@@ -82,8 +83,11 @@ int main( void ) {
 
     auto* pcb = setUpListener();
 
+    // To pick an election protocol, simply comment / uncomment one of these lines.
     // auto result = net.addProtocol( DemoElection( id, "fc07:b::a"_ip, 96 ));
-    auto result = net.addProtocol( EchoElection( id, "fc07:b::a"_ip, 96 ) );
+    // auto result = net.addProtocol( EchoElection( id, "fc07:b::a"_ip, 96 ) );
+    auto result = net.addProtocol( TraverseElection( id, "fc07:b::a"_ip, 96 ) );
+
     net.setProtocol( *result );
 
     std::string line;
@@ -110,6 +114,6 @@ int main( void ) {
 
         std::cout << "> ";
     }
-    std::cout << "Ending NetworkManager example\n";
+    std::cout << "Ending election example\n";
     return 0;
 }
