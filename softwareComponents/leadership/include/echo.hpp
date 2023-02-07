@@ -232,8 +232,6 @@ namespace rofi::net {
 
         virtual bool onMessage( const std::string& interfaceName,
                                 rofi::hal::PBuf packetWithHeader ) override {
-            bool result = false;
-            
             auto packet = PBuf::own( pbuf_free_header( packetWithHeader.release(), IP6_HLEN ) );
             MessageType messageType = as< MessageType >( packet.payload() );
             int waveId = as< int >( packet.payload() + sizeof( MessageType ) );

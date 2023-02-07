@@ -17,7 +17,14 @@ namespace rofi::net {
      * An election protocol based on the election algorithm construction created by E. Korach,
      * S. Kutten and S. Moran, using a traversal algorithm to elect the node at which the network
      * traversal terminates.
-     * Things to consider: The current way this algorithm
+     * Things to consider: The current way this algorithm is restarted, as it does so only at 
+     * the connecting / disconnecting nodes, which may mean that the leader will be one of the
+     * two nodes and a full election may not take place.
+     *                     There is also a significant portion of code duplication, so it should
+     * be considered whether it should be removed, or kept in in favour of code that is read more
+     * easily due to the way this construction is structured. ( Currently, most of the code duplication 
+     * happens due to the decoupling of 'Annexation' and 'Chasing' modes and their handling, as it is just
+     * easier to understand what takes place that way. )
     */
     class TraverseElection : public Protocol {
         enum TokenMode {
