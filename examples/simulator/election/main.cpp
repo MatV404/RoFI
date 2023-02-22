@@ -73,6 +73,8 @@ int main( void ) {
         net.addAddress( "fc07:0:0:3::1"_ip, 80, net.interface( "rl0" ) );
     } else if ( id == 4 ) {
         net.addAddress( "fc07:0:0:4::1"_ip, 80, net.interface( "rl0" ) );
+    } else if ( id == 5 ) {
+        net.addAddress( "fc07:0:0:5::1"_ip, 80, net.interface( "rl0" ) );
     } else {
         throw std::runtime_error( "more than 4 bots!" );
     }

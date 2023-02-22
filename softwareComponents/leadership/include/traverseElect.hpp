@@ -47,6 +47,9 @@ namespace rofi::net {
         std::set< std::string > _interfaceWithCb;
         std::vector< std::pair< ConfigAction, ConfigChange > > _confChanges;
 
+        // Guard against double initialization after interface event.
+        bool _restarted = false;
+
         const Ip6Addr&  _leaderAddress;
         uint8_t _mask;
         int _leaderId;
@@ -61,9 +64,27 @@ namespace rofi::net {
 
         Interface::Name _nextNode;
         Interface::Name _parentNode = "rl0";
+        Interface::Name _leaderFrom = "rl0";
 
         std::map< Interface::Name, bool > _sent;
 
+        void _printToken( Token token ) {
+            std::cout << "Token of ID " << token.identity << " with hop count of " << token.hopCount << " and phase " << token.phase << " with mode ";
+            switch ( token.mode ) {
+                case TokenMode::ANNEXING:
+                    std::cout << " annexing.\n";
+                    return;
+                case TokenMode::CHASING:
+                    std::cout << " chasing.\n";
+                    return;
+                case TokenMode::DISCOVERY:
+                    std::cout << " discovery.\n";
+                    return;
+                default:
+                    std::cout << " leader.\n";
+                    return;
+            }
+        }
 
         void _determineNextNode() {
             for ( const auto& [ key, _ ] : _sent ) {
@@ -73,10 +94,11 @@ namespace rofi::net {
                 }
             }
 
-            if ( !_sent[ _parentNode ] ) {
+            if ( _parentNode != "rl0" && !_sent[ _parentNode ] ) {
                 _nextNode = _parentNode;
                 return;
             }
+
             _nextNode = "rl0";
         }
 
@@ -91,6 +113,7 @@ namespace rofi::net {
             _phase = 0;
             _tokenId = _id;
             _tokenType = TokenMode::ANNEXING;
+            _parentNode = "rl0";
             _determineNextNode();
             _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
             return true;
@@ -106,9 +129,11 @@ namespace rofi::net {
             _leaderId = id;
             _tokenId = -1;
             _maxHops = -1;
+            _chasedAtPhase = -1;
             _phase = -1;
             _parentNode = "rl0";
             _resetSent();
+            _restarted = false;
             return true;
         }
 
@@ -149,6 +174,7 @@ namespace rofi::net {
                 _waitingTokenId = -1;
                 _tokenType = TokenMode::ANNEXING;
                 _determineNextNode();
+                std::cout << _nextNode << "\n";
                 if ( _nextNode == "rl0" ) {
                     return _leaderActions( _id, interfaceName );
                 }
@@ -211,6 +237,11 @@ namespace rofi::net {
             auto packet = PBuf::own( pbuf_free_header( packetWithHeader.release(), IP6_HLEN ) );
             Token receivedToken = as< Token >( packet.payload() );
 
+            if ( receivedToken.mode != TokenMode::DISCOVERY ) {
+                std::cout << "Token received on " << interfaceName << ": ";
+                _printToken( receivedToken );
+                std::cout << "Parent currently is: " << _parentNode << "\n";
+            }
             // This is done in initialization to ensure we only care about interfaces that
             // have active connections. This also helps ignore the pad module.
             if ( receivedToken.mode == TokenMode::DISCOVERY ) {
@@ -256,6 +287,10 @@ namespace rofi::net {
                 return false;
             }
             
+            if ( _tokenType == TokenMode::LEADER && interface.name() == _leaderFrom ) {
+                return false;
+            }
+
             // We don't need to update maxHops with any other token type, 
             // since the chasing token only stores what it saw in the node.
             if ( _tokenType == TokenMode::ANNEXING ) {
@@ -286,11 +321,20 @@ namespace rofi::net {
         virtual void clearUpdates() { _confChanges.clear(); }
 
         virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
+            // A workaround to disconnect being triggered twice.
+            if ( _restarted ) {
+                return false;
+            }
+            _restarted = true;
+            
             if ( connected ) {
                 _sent[ interface.name() ] = false;
             } else {
                 _sent.erase( interface.name() );
             }
+
+
+            // This is called twice upon disconnect???? Really weird - maybe netmg issue?
             return _initialize( interface.name() );
         }
 
