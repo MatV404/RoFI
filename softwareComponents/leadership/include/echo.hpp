@@ -12,36 +12,25 @@
 #include <set>
 #include <utility>
 
-enum MessageType {
-    TOKEN_MESSAGE,
-    LEADER_MESSAGE,
-    RESET_REQUEST,
-    RESET_RESPONSE
-};
-
-enum RelayType {
-    SEND_TO_NEIGHBORS,
-    SEND_TO_PARENT,
-    RESPONSE_TO_PARENT, //ToDo: Think about changing this - used in reset.
-    IGNORE_PARENT,
-    DO_NOT_SEND,
-};
-
-
 namespace rofi::net {
-    /**
-     * An election protocol built on the principles of extinction and the echo wave protocol.
-     * Restart here is done in a 'lazy' or 'sensitive' manner, restarting whenever an interface event occurs. This
-     * should not change the outcome if the interface change did not affect the overall topology in any serious
-     * manner ( e.g. the bot is split into two independent bots ), but does invoke more restarts than may be necessary.
-     * However, it also saves on message complexity ( in comparison with simple-elect, we only send a simple message instead of the entire table )
-    */
     class EchoElection : public Protocol {
-
         struct InterfaceReceived {
             bool regularReceived;
             bool leaderReceived;
-            bool resetReceived;
+            bool initiated;
+        };
+
+        enum MessageType {
+            ELECTION_MESSAGE,  // Carries basic election messages 
+            LEADER_MESSAGE,    // Announces leadership
+            INITIATE_MESSAGE,  // For the initiation of the algorithm
+        };
+
+        enum RelayType {
+            SEND_TO_NEIGHBORS, // All but parent
+            SEND_TO_PARENT,    // Only parent
+            SEND_TO_ALL,       // Everyone
+            DO_NOT_SEND,       // Stops message sending
         };
 
         std::vector< std::reference_wrapper< const Interface > > _managedInterfaces;
@@ -53,226 +42,191 @@ namespace rofi::net {
         uint8_t _mask;
         int _id;
         
-        int _winnerId;
+        int _leaderId;
         int _currentWaveId;
         Interface::Name _parent;
 
         MessageType _messageType;
         RelayType _relayType;
+        bool _restart;
 
+        std::map< Interface::Name, bool > _pendingDiscoveryResponse;
         std::map< Interface::Name, InterfaceReceived > _received;
 
-
-        void _resetReceived( bool includeReset ) {
-            for ( auto& [ key, _ ] : _received ) {
-                _received[ key ].regularReceived = false;
-                _received[ key ].leaderReceived = false;
-                if ( includeReset ) {
-                    _received[ key ].resetReceived = false;
-                }
-            }
-        }
-
-        // ToDo: Merge with _checkReceived
-        bool _checkReset( bool any ) {
-            for ( auto [ _, value ] : _received ) {
-                if ( any && value.resetReceived ) {
-                    return true; 
-                }
-
-                if ( !any && !value.resetReceived ) {
+        bool _noLeaderReceived() {
+            for ( const auto& [ key, _ ] : _received ) {
+                if ( _received[ key ].leaderReceived ) {
                     return false;
                 }
             }
-
-            return !any;
+            return true;
         }
 
-        bool _checkReceived( bool any, bool checkLeaderMessages ) {
-            for ( auto& [ _, value ] : _received ) {
-                bool checkResult = checkLeaderMessages ? value.leaderReceived : value.regularReceived;
+        bool _noPendingResponse() {
+            for ( const auto& [ key, _ ] : _pendingDiscoveryResponse ) {
+                if ( _pendingDiscoveryResponse[ key ] ) {
+                    std::cout << key << "\n";
+                    return false;
+                }
+            }
+            return true;
+        }
 
-                // Checking for at least one being true.
-                if ( any && checkResult ) {
+        bool _allRegularReceived() {
+            for ( const auto& [ key, _ ] : _received ) {
+                if ( !_received[ key ].regularReceived ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        void _resetReceived() {
+            for ( const auto& [ key, _ ] : _received ) {
+                _received[key].leaderReceived = false;
+                _received[key].regularReceived = false;
+            }
+        }
+
+        bool _allInitiated() {
+            for ( const auto& [ _, value ] : _received ) {
+                if ( !value.initiated ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        bool _onElectionMessage( const std::string& interfaceName, 
+                                 int otherWaveId ) {
+            if ( _restart && _id == _leaderId ) {
+                _confChanges.push_back( { ConfigAction::REMOVE_IP, { "rl0", _leaderAddress, _mask } } );
+            }
+
+            if ( _currentWaveId < otherWaveId ) {
+                if ( _restart && _currentWaveId == _id ) {
+                    _relayType = RelayType::SEND_TO_NEIGHBORS;
+                    _messageType = MessageType::ELECTION_MESSAGE;
+                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
                     return true;
                 }
+                return false;
+            }
 
-                // Checking for all being true, so if we find one that is not, return false.
-                if ( !any && !checkResult ) {
+            _received[ interfaceName ].regularReceived = true;
+
+            if ( _currentWaveId == otherWaveId ) {
+                if ( !_allRegularReceived() ) {
                     return false;
                 }
-            }
-            
-            return !any;
-        }
 
-        bool _election( const std::string& interfaceName, 
-                                MessageType messageType, int waveId ) {
-            bool result = false;
-            if ( messageType == MessageType::LEADER_MESSAGE ) {
-                // If no leader messages were received up until this point, send out leader messages to neighbours.
-                if ( ! _checkReceived( true, true ) ) {
+                // This node was elected.
+                if ( _id == otherWaveId ) {
+                    _leaderId = _id;
+                    _resetReceived();
+                    _received[ interfaceName ].regularReceived = true;
                     _messageType = MessageType::LEADER_MESSAGE;
-                    _relayType = RelayType::SEND_TO_NEIGHBORS;
+                    _relayType = RelayType::SEND_TO_ALL;
+                    _confChanges.push_back( { ConfigAction::ADD_IP, { "rl0", _leaderAddress, _mask } } );
+                } else {
+                    _messageType = MessageType::ELECTION_MESSAGE;
+                    _relayType = RelayType::SEND_TO_PARENT;
                     _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
-                    result = true;
                 }
-
-                _received[ interfaceName ].leaderReceived = true;
-
-                // If this was a leader before, but is now about to be 'dethroned', we must remove the address from it.
-                if ( waveId != _winnerId && _winnerId == _id ) {
-                    _confChanges.push_back( { ConfigAction::REMOVE_IP, { "rl0", _leaderAddress, _mask } } );
-                    result = true;
-                }
-                _winnerId = waveId;
-                _currentWaveId = _winnerId;
-            } else {
-                _received[ interfaceName ].regularReceived = true;
-
-                if ( waveId < _currentWaveId ) {
-                    _resetReceived( true );
-                    _currentWaveId = waveId;
-                    _parent = interfaceName;
-
-                    _messageType = TOKEN_MESSAGE;
-                    _relayType = IGNORE_PARENT;
-
-                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
-                    result = true;
-                } else if ( waveId == _currentWaveId ) {
-                    // Did all active interfaces receive a regular type message?
-                    if ( ! _checkReceived( false, false ) ) {
-                        return result;
-                    }
-
-                    if ( _currentWaveId == _id ) {
-                        _messageType = MessageType::TOKEN_MESSAGE;
-                        _relayType = RelayType::SEND_TO_NEIGHBORS;
-                    } else {
-                        _messageType = MessageType::LEADER_MESSAGE;
-                        _relayType = RelayType::SEND_TO_PARENT;
-                    }
-                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
-                    result = true;
-                }
-            }
-
-            if ( _checkReceived( false, true ) && _winnerId == _id ) {
-                _confChanges.push_back( { ConfigAction::ADD_IP, { "rl0", _leaderAddress, _mask } } );
-                _relayType = RelayType::DO_NOT_SEND;
                 return true;
             }
 
-            return result;
+            // _currentWaveId > otherWaveId
+            if ( _received.size() == 1 ) {
+                if ( _restart ) {
+                    _restart = false;
+                }
+            }
+            _relayType = ( _received.size() == 1 ) ? RelayType::SEND_TO_PARENT : RelayType::SEND_TO_NEIGHBORS;
+            _messageType = MessageType::ELECTION_MESSAGE;
+            _resetReceived();
+            _received[ interfaceName ].regularReceived = true;
+            _parent = interfaceName;
+            _currentWaveId = otherWaveId;
+            _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+            return true;
         }
 
-        bool _reset( const std::string& interfaceName, MessageType messageType, int waveId ) {
-            bool result = false;
-            
-            if ( _messageType != MessageType::RESET_REQUEST && _messageType != MessageType::RESET_RESPONSE ) {
-                _parent = interfaceName;
-            } else if ( _relayType != RelayType::IGNORE_PARENT ) {
+        bool _onLeaderMessage( const std::string& interfaceName, int otherWaveId ) {
+            if ( _noLeaderReceived() ) {
+                _received[ interfaceName ].leaderReceived = true;
+                _leaderId = otherWaveId;
+                _currentWaveId = _id;
                 _parent = "rl0";
-            }
-
-            _received[ interfaceName ].resetReceived = true;
-            
-            if ( messageType == MessageType::RESET_REQUEST ) {
-
-                // If all interfaces received a reset message -> notify parent with RESET_RESPONSE
-                if ( _checkReset( false ) ) { 
-                    _currentWaveId = _id;
-                    _messageType = MessageType::RESET_RESPONSE;
-                    _relayType = RelayType::RESPONSE_TO_PARENT;
-                } else {
-                    _messageType = MessageType::RESET_REQUEST;
-                    _relayType = RelayType::IGNORE_PARENT;
-                }
-                result = true;
+                _messageType = MessageType::LEADER_MESSAGE;
+                _relayType = RelayType::SEND_TO_ALL;
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                return true;
             }
-
-            // We treat RESET_RESPONSE partially as a token message.
-            else {
-                // All recesponses received
-                if ( _checkReset( false ) ) {
-                    //perform reset
-                    _resetReceived( false );
-                    _currentWaveId = _id;
-                    _parent = "rl0";
-                    _messageType = MessageType::RESET_RESPONSE;
-                    
-                    // This will send RESET_RESPONSE back to parent but TOKEN_MESSAGE to neighbours.
-                    _relayType = RelayType::RESPONSE_TO_PARENT;
-                    result = true;
-                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
-                }
-
-                // Relay the received wave.
-                if ( waveId < _currentWaveId) {
-                    _currentWaveId = waveId;
-                    _parent = interfaceName;
-                    result = true;
-                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
-                }
-            }
-            return result;
+            return false;
         }
 
-    public: 
-        EchoElection( int id, const Ip6Addr& leaderAddr, uint8_t mask ) 
-        : _leaderAddress( leaderAddr ), _mask( mask ), _id( id ) {
-            _winnerId = -1;
+        bool _onInitiateMessage( const std::string& interfaceName ) {
+            _received[ interfaceName ].initiated = true;
+            if ( _managedInterfaces.size() == 7 && _allInitiated() ) {
+                _messageType = MessageType::ELECTION_MESSAGE;
+                _relayType = RelayType::SEND_TO_NEIGHBORS;
+                _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                return true;
+            }
+            return false;
+        }
+
+    public:
+        EchoElection( int id, const Ip6Addr& leaderAddr, uint8_t mask )
+        : _id(id), _leaderAddress( leaderAddr ), _mask(mask) {
+            _leaderId = -1;
             _currentWaveId = _id;
             _parent = "rl0";
-            _messageType = MessageType::TOKEN_MESSAGE;
+            _restart = false;
+            _messageType = MessageType::ELECTION_MESSAGE;
             _relayType = RelayType::SEND_TO_NEIGHBORS;
         }
 
         virtual bool onMessage( const std::string& interfaceName,
                                 rofi::hal::PBuf packetWithHeader ) override {
             auto packet = PBuf::own( pbuf_free_header( packetWithHeader.release(), IP6_HLEN ) );
-            MessageType messageType = as< MessageType >( packet.payload() );
+            MessageType type = as< MessageType >( packet.payload() );
             int waveId = as< int >( packet.payload() + sizeof( MessageType ) );
+            _restart = as< bool >( packet.payload() + sizeof( MessageType ) + sizeof( int ) );
 
-            if ( messageType == MessageType::LEADER_MESSAGE || messageType == MessageType::TOKEN_MESSAGE ) {
-                return _election( interfaceName, messageType, waveId );
+            switch ( type ) {
+                case MessageType::ELECTION_MESSAGE:
+                    return _onElectionMessage( interfaceName, waveId );
+                case MessageType::LEADER_MESSAGE:
+                    return _onLeaderMessage( interfaceName, waveId );
+                default:
+                    return _onInitiateMessage( interfaceName );
             }
-            return _reset( interfaceName, messageType, waveId );
+            return false;
+
         }
 
-        virtual bool afterMessage( const Interface& interface,
+        virtual bool afterMessage( const Interface& interface, 
                                    std::function< void ( PBuf&& ) > fun, void* /* args */ ) override {
-            // ToDo: Think about making this nicer.
             if ( _relayType == RelayType::DO_NOT_SEND ) {
                 return false;
             }
-
-            if ( _relayType == IGNORE_PARENT && interface.name() == _parent ) {
-                return false;
-            }
-
-            if ( _relayType == SEND_TO_PARENT && interface.name() != _parent ) {
-                return false;
-            }
-
-            if ( _relayType == RESPONSE_TO_PARENT && interface.name() == _parent ) {
-                _messageType = MessageType::RESET_RESPONSE;
-            } else if ( _relayType == RESPONSE_TO_PARENT ) {
-                _messageType = MessageType::TOKEN_MESSAGE;
-            }
-
-            auto packet = PBuf::allocate( sizeof( MessageType ) + sizeof( int ) );
-            as< MessageType >( packet.payload() ) = _messageType;
-            as< int >( packet.payload() + sizeof( MessageType ) ) = _currentWaveId;
-
-            fun( std::move( packet ) );
             
-            // Ensures the reset is completed and every bot moves on to the ELECTION process.
-            if ( _messageType == MessageType::RESET_RESPONSE && interface.name() == "rd6" ) { // TODO: FIX THIS
-                _messageType = MessageType::TOKEN_MESSAGE;
+            if ( _relayType == RelayType::SEND_TO_NEIGHBORS && interface.name() == _parent ) {
+                return false;
             }
+
+            if ( _relayType == RelayType::SEND_TO_PARENT && interface.name() != _parent ) {
+                return false;
+            }
+
+            auto packet = PBuf::allocate( sizeof( MessageType ) + sizeof( int ) + sizeof( bool ) );
+            as< MessageType >( packet.payload() ) = _messageType;
+            as< int >( packet.payload() + sizeof( MessageType ) ) = ( _messageType == MessageType::LEADER_MESSAGE ) ? _leaderId : _currentWaveId;
+            as< bool >( packet.payload() + sizeof( MessageType ) + sizeof( int ) ) = _restart;
+            
+            fun( std::move( packet ) );
             return false;
         }
 
@@ -284,31 +238,23 @@ namespace rofi::net {
 
         virtual void clearUpdates() { _confChanges.clear(); }
 
-        virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override { 
-            _parent = "rl0";
-            _resetReceived( true );
-            _currentWaveId = _id;
-
-            if ( _messageType != MessageType::RESET_REQUEST && _messageType != MessageType::RESET_RESPONSE ) {
-                _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
-            }
-
-            _messageType = MessageType::RESET_REQUEST;
-            _relayType = RelayType::SEND_TO_NEIGHBORS;
-
-            if ( !connected ) {
-                _received.erase( interface.name() );
-            }
-
-            return true; 
-        }
-
         virtual bool addInterface( const Interface& interface ) {
             if ( manages( interface ) ) {
                 return false;
             }
-
             _managedInterfaces.push_back( std::reference_wrapper( interface ) );
+
+            if ( const_cast< Interface& >( interface ).isConnected() ) {
+                _received[ interface.name() ].leaderReceived = false;
+            }
+
+            _relayType = RelayType::DO_NOT_SEND;
+
+            if ( _managedInterfaces.size() == 7 && _currentWaveId == _id ) {
+                _messageType = INITIATE_MESSAGE;
+                _relayType = SEND_TO_NEIGHBORS;
+            }
+
             return true;
         }
 
@@ -320,6 +266,25 @@ namespace rofi::net {
 
             std::swap( *it, _managedInterfaces.back() );
             _managedInterfaces.pop_back();
+            return true;
+        }
+
+        virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
+            if ( _restart ) {
+                return false;
+            }
+
+            _restart = true;
+
+            if ( connected ) {
+                _received[ interface.name() ].regularReceived = false;
+            } else {
+                _received.erase( interface.name() );
+            }
+
+            _messageType = MessageType::ELECTION_MESSAGE;
+            _relayType = RelayType::SEND_TO_NEIGHBORS;
+            _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
             return true;
         }
 
@@ -336,7 +301,7 @@ namespace rofi::net {
         virtual std::string info() const override {
             std::string str = Protocol::info();
             std::stringstream ss;
-            ss << "; leader id: " << _winnerId << " leader address: " << _leaderAddress;
+            ss << "; leader id: " << _leaderId << " leader address: " << _leaderAddress;
             return str  + ss.str();
         }
     };
