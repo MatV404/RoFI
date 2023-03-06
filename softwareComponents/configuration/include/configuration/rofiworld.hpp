@@ -27,6 +27,7 @@ enum class ComponentType {
     UmBody,
     UmShoe,
     CubeBody,
+    PassiveRoficom,
 };
 
 enum class ModuleType {

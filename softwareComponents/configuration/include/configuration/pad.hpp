@@ -9,7 +9,7 @@ namespace rofi::configuration {
 class Pad : public Module {
 
     static std::vector< Component > _initializeComponents( int size ) {
-        return std::vector< Component >( size, Component { ComponentType::Roficom, {}, {}, nullptr } );
+        return std::vector< Component >( size, Component { ComponentType::PassiveRoficom, {}, {}, nullptr } );
     }
 
     static std::vector< ComponentJoint > _initializeJoints( int n, int m ) {

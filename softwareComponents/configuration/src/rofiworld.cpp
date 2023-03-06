@@ -68,7 +68,7 @@ Matrix Component::getPosition() const {
 }
 
 std::optional< std::pair< const Component&, roficom::Orientation > > Component::getNearConnector() const {
-    assert( type == ComponentType::Roficom );
+    assert( type == ComponentType::Roficom || type == ComponentType::PassiveRoficom );
     assert( parent != nullptr );
     assert( parent->parent != nullptr );
 
@@ -81,7 +81,7 @@ std::optional< std::pair< const Component&, roficom::Orientation > > Component::
         assert( moduleInfo.module );
 
         for ( const Component& nearConnector : moduleInfo.module->connectors() ) {
-            assert( nearConnector.type == ComponentType::Roficom );
+            assert( nearConnector.type == ComponentType::Roficom || nearConnector.type == ComponentType::PassiveRoficom );
 
             static constexpr auto allOrientations = std::array{ roficom::Orientation::North,
                                                                 roficom::Orientation::East,
@@ -255,7 +255,7 @@ void RofiWorld::disconnect( SpaceJointHandle h ) {
 }
 
 RofiWorld::RoficomJointHandle connect( const Component& c1, const Component& c2, roficom::Orientation o ) {
-    assert( c1.type == ComponentType::Roficom && c2.type == ComponentType::Roficom && "Components are not RoFICoMs" );
+    assert( ( c1.type == ComponentType::Roficom || c1.type == ComponentType::PassiveRoficom ) && ( c2.type == ComponentType::Roficom || c2.type == ComponentType::PassiveRoficom ) && "Components are not RoFICoMs" );
 
     if ( c1.parent->parent != c2.parent->parent )
         throw std::logic_error( "Components have to be in the same world" );

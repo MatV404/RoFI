@@ -22,6 +22,8 @@ namespace rofi::configuration::serialization {
                 return "UM shoe";
             case ComponentType::CubeBody:
                 return "Cube body";
+            case ComponentType::PassiveRoficom:
+                return "Passive roficom";
         }
         ROFI_UNREACHABLE( "Unknown component type" );
     }
