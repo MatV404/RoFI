@@ -22,6 +22,7 @@ namespace rofi::leadership {
         ELECTION,
         NORMAL,
         REORGANIZATION,
+        NOT_STARTED,
     };
 
     enum InvitationMessage : char {
@@ -67,22 +68,24 @@ namespace rofi::leadership {
         std::set< Ip6Addr > _up; //S(i).up
         std::set< Ip6Addr > _foundCoordinators;
 
-        NetworkManager& _netmg;
-        const std::string& _routing;
+        std::vector< Ip6Addr > _addresses;
+        u16_t _port;
+        Ip6Addr _awaited;
+        bool _started = false;
+
         udp_pcb* _pcb = nullptr;
         
         std::mutex _waitMutex; //_functionMutex;
         std::condition_variable _condVar;
+
         std::function< std::pair< void*, int >() > _calculateTask;
         std::function< void ( void*, int ) > _getTask;
         std::function< void () > _stopWork;
 
-        u16_t _port;
+        
         int _timeout;
+        int _period;
         std::atomic< bool > _coordinatorContacted;
-
-        Ip6Addr _awaited;
-        bool _started = false;
 
         PBuf _composeMessage( InvitationMessage messageType ) {
             switch ( messageType ) {
@@ -291,7 +294,7 @@ namespace rofi::leadership {
             }
 
             // Wait ... some time.
-            sleep( _timeout  );
+            sleep( _period * 2  );
 
             // _functionMutex.lock();
             _nodeStatus = InvitationStatus::REORGANIZATION;
@@ -301,7 +304,7 @@ namespace rofi::leadership {
                 _awaited = address;
                 _sendMessage( address, _composeReadyMessage() );
                 std::unique_lock< std::mutex > lock( _waitMutex );
-                if ( !_condVar.wait_for( lock, 1000ms, [ this ] { return _awaited == _myAddr; } ) ) {
+                if ( !_condVar.wait_for( lock, std::chrono::seconds( _timeout ), [ this ] { return _awaited == _myAddr; } ) ) {
                     _awaited = _myAddr;
                     _recovery();
                     return;
@@ -317,19 +320,17 @@ namespace rofi::leadership {
         void _checkForGroups() {
             _foundCoordinators.clear();
             if ( _nodeStatus == InvitationStatus::NORMAL && _coordinator == _myAddr ) {
-                auto records = _netmg.routingTable().recordsLearnedFrom( *_netmg.getProtocol( _routing ) ); 
-                for ( auto record : records ) {
-                    auto addr = record.ip();
-                    if ( addr == _myAddr ) {
+                for ( auto address : _addresses ) {
+                    if ( address == _myAddr ) {
                         continue;
                     }
-                    addr.zone = 0;
-                    _awaited = addr;
-                    if ( !_sendMessage( addr, _composeMessage( InvitationMessage::ARE_YOU_COORDINATOR ) ) ) {
+                    // address.zone = 0;
+                    _awaited = address;
+                    if ( !_sendMessage( address, _composeMessage( InvitationMessage::ARE_YOU_COORDINATOR ) ) ) {
                         continue;
                     }
                     std::unique_lock< std::mutex > lock( _waitMutex );
-                    if ( !_condVar.wait_for( lock, 1000ms, [ this ] { return _awaited == _myAddr; } ) ) {
+                    if ( !_condVar.wait_for( lock, std::chrono::seconds( _timeout ), [ this ] { return _awaited == _myAddr; } ) ) {
                         continue;
                     }
                     lock.unlock();
@@ -341,8 +342,8 @@ namespace rofi::leadership {
 
                 Ip6Addr highestPrio = *_foundCoordinators.rbegin();
                 if ( highestPrio > _myAddr ) {
-                    sleep( _timeout ); // This is magical. Fix.
-                    return;
+                    sleep( _timeout );
+                    return; // We yield to the coordinator of larger priority, since they are likely going to invite us.
                 }
                 _mergeGroups();
             }
@@ -357,7 +358,7 @@ namespace rofi::leadership {
             }
 
             std::unique_lock< std::mutex > lock( _waitMutex );
-            if ( !_condVar.wait_for( lock, 1000ms, [ this ]{ return _awaited == _myAddr; } ) ) {
+            if ( !_condVar.wait_for( lock, std::chrono::seconds( _timeout ), [ this ]{ return _awaited == _myAddr; } ) ) {
                 _awaited = _myAddr; 
                 _recovery();
             }
@@ -377,26 +378,49 @@ namespace rofi::leadership {
                         _checkCoordinator();
                     }
                 }
-                sleep( _timeout );
+                sleep( _period );
             }
         }
     public:
-        InvitationElection( int id, Ip6Addr& myAddr, u16_t port, 
-                            NetworkManager& netmg, const std::string& routingName, 
-                            int timeout, std::function< std::pair< void*, int >() > calculateTask, 
+        /**
+         * The Invitation Election class constructor.
+         * @param id - The RoFI module's ID, unique to the configuration.
+         * @param myAddr - the address used for identification by the module. Should be unique and contained in addresses.
+         * @param port - The port for the underlying networking service used for the election.
+         * @param addresses - a vector of all possible node addresses within the system, make sure there is only one address per one module.
+         * @param calculateTask - a function used when the election requires a task for distribution.
+         * @param getTask - a function used when the election receives a task and is passing it onto the rest of the code.
+         * @param stopWork - a function that is invoked when the node status becomes unstable, an election is ongoing, and work needs to be stopped until new tasks are distributed.
+         * @param timeout - allows the user to specify how long an operation waits for a response until timeout is decalred. The default is 1.
+         * @param period - allows the user to specify how long the module waits between checks for the existence of a leader or other groups. The default is 3.
+        */
+        InvitationElection( int id, Ip6Addr& myAddr, u16_t port,  
+                            std::vector< Ip6Addr > addresses, 
+                            std::function< std::pair< void*, int >() > calculateTask, 
                             std::function< void ( void*, int ) > getTask,
-                            std::function< void () > stopWork ) 
-        : _netmg( netmg ), _myAddr( myAddr), _coordinator( myAddr ), _routing( routingName ), _awaited( myAddr ) {
+                            std::function< void () > stopWork,
+                            int timeout, int period ) 
+        : _myAddr( myAddr), _coordinator( myAddr ), _awaited( myAddr ) {
+            assert( id >= 0 && "ID must be non-negative!\n");
             _id = id;
-            _nodeStatus = InvitationStatus::REORGANIZATION;
+            _nodeStatus = InvitationStatus::NOT_STARTED;
             _groupNumber.coordinatorId = _id;
             _groupNumber.sequenceNum = 0;
-            _timeout = timeout;
+            _timeout = ( timeout > 0 ) ? timeout : 3;
+            _period = ( period > 0 ) ? period : 1;
             _port = port;
             _calculateTask = calculateTask;
             _getTask = getTask;
             _stopWork = stopWork;
+            _addresses = addresses;
         }
+
+        InvitationElection( int id, Ip6Addr& myAddr, u16_t port,
+                            std::vector< Ip6Addr > addresses,
+                            std::function< std::pair< void*, int >() > calculateTask, 
+                            std::function< void ( void*, int ) > getTask, 
+                            std::function< void () > stopWork )
+        : InvitationElection( id, myAddr, port, addresses, calculateTask, getTask, stopWork, 1, 3 ){};
 
         bool setUp() {
             _pcb = udp_new();
@@ -416,10 +440,11 @@ namespace rofi::leadership {
         }
 
         void start() {
-            if ( _started ) {
+            if ( _nodeStatus != InvitationStatus::NOT_STARTED ) {
                 return;
             }
-            _started = true;
+            std::cout << "Starting up\n";
+            _nodeStatus = InvitationStatus::REORGANIZATION;
             _recovery();
             std::thread thread{ [ this ]() {
                 this->_periodicCheck();
@@ -432,7 +457,7 @@ namespace rofi::leadership {
          * as an indicator as to whether the leader is up to date ( second == true ), 
          * or whether the leader is currently being re-elected ( second == false ).
         */
-        std::pair< Ip6Addr&, bool > getLeader() {
+        std::pair< const Ip6Addr&, bool > getLeader() {
             return std::pair< Ip6Addr&, bool >( _coordinator, _nodeStatus == InvitationStatus::NORMAL );
         }
 
@@ -444,9 +469,10 @@ namespace rofi::leadership {
         }
 
         void onMessage( const Ip6Addr addr, PBuf packet ) {
-            if ( _nodeStatus == InvitationStatus::DOWN ) {
+            if ( _nodeStatus == InvitationStatus::DOWN || _nodeStatus == InvitationStatus::NOT_STARTED ) {
                 return;
             }
+
             InvitationMessage messageType = as< InvitationMessage >( packet.payload() );
             switch ( messageType ) {
                 case InvitationMessage::ACCEPT:
@@ -487,6 +513,7 @@ namespace rofi::leadership {
             return;
         }
 
+        /** Turns off the node's invitation election functions, simulating a node failure. A second call makes the node restart. */
         void switchDown() {
             if ( _nodeStatus != InvitationStatus::DOWN ) {
                 _nodeStatus = InvitationStatus::DOWN;
