@@ -90,8 +90,7 @@ namespace rofi::leadership {
         PBuf _composeMessage( InvitationMessage messageType ) {
             switch ( messageType ) {
                 case InvitationMessage::ACCEPT_RES:
-                case InvitationMessage::READY_RES:
-                case InvitationMessage::ARE_YOU_COORDINATOR: {
+                case InvitationMessage::READY_RES: {
                     auto packet = PBuf::allocate( sizeof( InvitationMessage ) );
                     as< InvitationMessage >( packet.payload() ) = messageType;
                     return packet;
@@ -105,6 +104,7 @@ namespace rofi::leadership {
                     return packet;
                 }
                 case InvitationMessage::ARE_YOU_THERE:
+                case InvitationMessage::ARE_YOU_COORDINATOR:
                 case InvitationMessage::ACCEPT: {
                     auto packet = PBuf::allocate( sizeof( InvitationMessage ) + sizeof( GroupNumber ) + sizeof( int ) );
                     as< InvitationMessage >( packet.payload() ) = messageType;
@@ -184,9 +184,9 @@ namespace rofi::leadership {
             // _functionMutex.unlock();
         }
 
-        void _onAreYouCoordinator( const Ip6Addr& addr ) {
+        void _onAreYouCoordinator( const Ip6Addr& addr, GroupNumber groupNum ) {
             // _functionMutex.lock();
-            if ( addr == _coordinator ) {
+            if ( addr == _coordinator && _groupNumber == groupNum ) {
                 _coordinatorContacted = true;
             }
             _sendMessage( addr, _composeResponse( InvitationMessage::ARE_YOU_COORDINATOR_RES, 
@@ -424,9 +424,15 @@ namespace rofi::leadership {
 
         bool setUp() {
             _pcb = udp_new();
-            assert( _pcb && "PCB is null" );
+            if ( _pcb == nullptr ) {
+                return false;
+            }
+            
             err_t bind = udp_bind( _pcb, IP6_ADDR_ANY, _port );
-            assert( bind == ERR_OK && "Bind failed");
+            if ( bind != ERR_OK ) {
+                return false;
+            }
+            
             udp_recv( _pcb, 
                         [ ] ( void* invCls, struct udp_pcb*, struct pbuf* p, const ip6_addr_t* addr, u16_t ) {
                             if ( !p || !addr ) {
@@ -443,8 +449,6 @@ namespace rofi::leadership {
             if ( _nodeStatus != InvitationStatus::NOT_STARTED ) {
                 return;
             }
-            std::cout << "Starting up\n";
-            _nodeStatus = InvitationStatus::REORGANIZATION;
             _recovery();
             std::thread thread{ [ this ]() {
                 this->_periodicCheck();
@@ -482,7 +486,7 @@ namespace rofi::leadership {
                     _onAcceptResponse( addr );
                     return;
                 case InvitationMessage::ARE_YOU_COORDINATOR:
-                    _onAreYouCoordinator( addr );
+                    _onAreYouCoordinator( addr, as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) ) );
                     return;
                 case InvitationMessage::ARE_YOU_COORDINATOR_RES:
                     _onAreYouCoordinatorRes( addr, packet );

@@ -2,13 +2,18 @@
 #include "lwip++.hpp"
 
 
-#include <echo.hpp>
-#include <simpleElect.hpp>
-#include <traverseElect.hpp>
+#include <echo2.hpp>
+#include <networking/protocols/rrp.hpp>
+// #include <newTraverse.hpp>
+#include <networking/protocols/simpleReactive.hpp>
+#include <networking/protocols/leaderElect.hpp>
 
 #include <lwip/udp.h>
 #include <iostream>
 #include <string>
+
+#include "crashTolerance.cpp"
+#include "reactive.cpp"
 
 using namespace rofi::hal;
 using namespace rofi::net;
@@ -57,65 +62,7 @@ void handleConnector( bool connect ) {
 }
 
 int main( void ) {
-    std::cout << "Starting leadership election demo\n";
-    tcpip_init(nullptr, nullptr);
-    auto local = rofi::hal::RoFI::getLocalRoFI();
-    NetworkManager net( local );
-    NetworkManagerCli netcli( net );
-    int id = local.getId();
-    std::cout << "ID: " + std::to_string( id ) + "\n";
-
-    if ( id == 1 ) {
-        net.addAddress( "fc07:0:0:1::1"_ip, 80, net.interface( "rl0" ) );
-    } else if ( id == 2 ) {
-        net.addAddress( "fc07:0:0:2::1"_ip, 80, net.interface( "rl0" ) );
-    } else if ( id == 3 ) {
-        net.addAddress( "fc07:0:0:3::1"_ip, 80, net.interface( "rl0" ) );
-    } else if ( id == 4 ) {
-        net.addAddress( "fc07:0:0:4::1"_ip, 80, net.interface( "rl0" ) );
-    } else if ( id == 5 ) {
-        net.addAddress( "fc07:0:0:5::1"_ip, 80, net.interface( "rl0" ) );
-    } else {
-        throw std::runtime_error( "more than 4 bots!" );
-    }
-
-    std::cout << "address: " << net.interface( "rl0" ).getAddress().front().first << std::endl;
-    sleep( 2 );
-    net.setUp();
-
-    auto* pcb = setUpListener();
-
-    // To pick an election protocol, simply comment / uncomment one of these lines.
-    // auto result = net.addProtocol( DemoElection( id, "fc07:b::a"_ip, 96 ));
-    // auto result = net.addProtocol( EchoElection( id, "fc07:b::a"_ip, 96 ) );
-    auto result = net.addProtocol( TraverseElection( id, "fc07:b::a"_ip, 96 ) );
-
-    net.setProtocol( *result );
-
-    std::string line;
-    std::cout << "> ";
-
-    while ( std::getline( std::cin, line ) ) {
-        if ( line.empty() ) {
-            
-            continue;
-        } else if ( line == "end" || line == "q" || line == "quit" ) {
-            break;
-        }
-        
-        try {
-            if ( line == "connect" || line == "disconnect" ) {
-                handleConnector( line == "connect" );
-            } else if ( netcli.command( line ) ) {
-            } else {
-                std::cout << "Do nothing.";
-            }
-        } catch ( const std::exception& e ) {
-            std::cout << "Bad input: " << e.what() << std::endl;
-        }
-
-        std::cout << "> ";
-    }
-    std::cout << "Ending election example\n";
+    testTolerant( true );
+    // testProtocol( true );
     return 0;
 }
