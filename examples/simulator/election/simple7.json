@@ -22,13 +22,6 @@
             "gamma": 0
         },
         {
-            "id": 4,
-            "type": "universal",
-            "alpha": 0,
-            "beta": 0,
-            "gamma": 0
-        },
-        {
             "id": 42,
             "type": "pad",
             "width": 6,
@@ -43,28 +36,23 @@
             "orientation": "North"
         },
         {
-            "from": { "id": 3, "connector": "B-Z" },
-            "to"  : { "id": 2, "connector": "A+X" },
-            "orientation": "North"
-        },
-        {
-            "from": { "id": 3, "connector": "A-Z" },
-            "to": { "id": 1, "connector": "A-X" },
-            "orientation": "North"
+            "from": { "id": 1, "connector": "A-X" },
+            "to": { "id": 2, "connector": "A+X" },
+            "orientation": "South"
         },
         {
             "from": { "id": 1, "connector": "A-Z" },
-            "to":   { "id": 42, "connector": 3 },
-            "orientation": "North"
-        },
-        {
-            "from": { "id": 2, "connector": "B-X" },
-            "to":   { "id": 4, "connector": "B-Z" },
+            "to":   { "id": 42, "connector": 1 },
             "orientation": "North"
         },
         {
             "from": { "id": 1, "connector": "B+X" },
-            "to":   { "id": 4, "connector": "A-Z" },
+            "to":   { "id": 2, "connector": "B-X" },
+            "orientation": "South"
+        },
+        {
+            "from": { "id": 3, "connector": "A-X" },
+            "to":   { "id": 1, "connector": "B-X" },
             "orientation": "North"
         }
     ],
