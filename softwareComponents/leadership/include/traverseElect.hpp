@@ -57,6 +57,7 @@ namespace rofi::net {
         int _waitingTokenId;
 
         TokenType _sendType;
+        std::function< void ( bool, ElectionStatus ) >& _electionChangeCallback;
 
         bool _allInitiated( ) {
             for ( const auto& [ _ , value ] : _channels ) {
@@ -80,7 +81,7 @@ namespace rofi::net {
                 return;
             }
 
-            // The algorithm terminates.
+            // The traversal algorithm ends.
             _next = "rl0";
         }
 
@@ -101,10 +102,14 @@ namespace rofi::net {
         }
 
         bool _leaderActions( int id, const std::string& interfaceName ) {
+            _channels[ interfaceName ].leaderReceived = true;
+
             if ( id == _id ) {
                 _confChanges.push_back( { ConfigAction::ADD_IP, { "rl0", _leaderAddress, _mask } } );
+                _electionChangeCallback( true, ElectionStatus::LEADER );
             } else {
                 _confChanges.push_back( { ConfigAction::REMOVE_IP, { "rl0", _leaderAddress, _mask } } );
+                _electionChangeCallback( true, ElectionStatus::FOLLOWER );
             }
 
             _sendType = TokenType::LEADER;
@@ -117,6 +122,10 @@ namespace rofi::net {
                                Token receivedToken ) {
             if ( _parent == "rl0" && receivedToken.identity != _id ) {
                 _parent = interfaceName;
+                for ( const auto& [ key, _ ] : _channels ) {
+                    _channels[ key ].leaderReceived = false;
+                }
+                _electionChangeCallback( false, ElectionStatus::UNDECIDED );
             }
 
             // Tokens of lower phases are redundant and thus killed off.
@@ -208,8 +217,7 @@ namespace rofi::net {
             return false;
         }
 
-        bool _onInitiateToken( const std::string& interfaceName,
-                               Token receivedToken ) {
+        bool _onInitiateToken( const std::string& interfaceName ) {
             _channels[ interfaceName ].initiated = true;
             if ( _managedInterfaces.size() == 7 && _allInitiated() && _currentPhase == -1 ) {
                 _sendType = TokenType::ANNEXING;
@@ -224,17 +232,18 @@ namespace rofi::net {
 
         bool _onLeaderToken( const std::string& interfaceName,
                              int waveId ) {
-            if ( _channels[ interfaceName ].leaderReceived ) {
-                return false;
+            for ( const auto& [ _ , recv ] : _channels ) {
+                if ( recv.leaderReceived ) {
+                    return false;
+                }
             }
-            _channels[ interfaceName ].leaderReceived = true;
 
             return _leaderActions( waveId, interfaceName );
         }
 
     public:
-        TraverseElection( int id, const Ip6Addr& leaderAddress, uint8_t mask )
-        : _leaderAddress( leaderAddress ), _mask( mask ), _id( id ) {
+        TraverseElection( int id, const Ip6Addr& leaderAddress, uint8_t mask, std::function< void( bool, ElectionStatus ) > cb )
+        : _leaderAddress( leaderAddress ), _mask( mask ), _id( id ), _electionChangeCallback( cb ) {
             _leaderId = -1;
             _tokenId = -1;
             _maxHops = -1;
@@ -243,20 +252,23 @@ namespace rofi::net {
             _waitingTokenId = -1;
         }
 
+        virtual ~TraverseElection() = default;
+
         virtual bool onMessage( const std::string& interfaceName,
                                 rofi::hal::PBuf packetWithHeader ) override {
             auto packet = PBuf::own( pbuf_free_header( packetWithHeader.release(), IP6_HLEN ) );
             Token receivedToken = as< Token >( packet.payload() );
-
             switch ( receivedToken.type ) {
                 case TokenType::ANNEXING:
                     return _onAnnexingToken( interfaceName, receivedToken );
                 case TokenType::CHASING:
                     return _onChasingToken( interfaceName, receivedToken );
                 case TokenType::INITIATE:
-                    return _onInitiateToken( interfaceName, receivedToken );
+                    return _onInitiateToken( interfaceName  );
                 case TokenType::LEADER:
                     return _onLeaderToken( interfaceName, receivedToken.identity );
+                default:
+                    assert( false && "Invalid message type receved\n" );
             }
 
             return false;
@@ -303,14 +315,12 @@ namespace rofi::net {
         virtual void clearUpdates() { _confChanges.clear(); }
 
         virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
-            // Guard against double initialization that seems to occur on interface disconnect.
-            if ( _tokenId != -1 ) {
-                return false;
-            }
-
             if ( connected ) {
                 _channels[ interface.name() ].sent = false;
             } else {
+                if ( _channels.find( interface.name() ) == _channels.end() ) {
+                    return false;
+                }
                 _channels.erase( interface.name() );
             }
 
@@ -318,6 +328,9 @@ namespace rofi::net {
                 _channels[ key ].leaderReceived = false;
             }
             _determineNextNode();
+            if ( _next == "rl0" ) {
+                return _leaderActions( _id, interface.name() );
+            }
             _sendType = TokenType::ANNEXING;
             _tokenId = _id;
             _currentPhase = 0;
