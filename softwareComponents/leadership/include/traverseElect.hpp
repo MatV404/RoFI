@@ -19,19 +19,22 @@ namespace rofi::net {
             ANNEXING,
             CHASING,
             LEADER,
+            CHANGE,
+            CONNECT,
             NONE,
         };
 
         struct Token {
             TokenType type;
             int phase;
-            int identity;
+            Ip6Addr identity = Ip6Addr( "::" );
             int hopCount;
         };
 
         struct ChannelInfo {
             bool initiated;
             bool sent;
+            bool leaderSent = false;
             bool leaderReceived;
         };
 
@@ -42,22 +45,21 @@ namespace rofi::net {
         std::map< Interface::Name, ChannelInfo > _channels;
         Interface::Name _parent = "rl0";
         Interface::Name _next;
+        Interface::Name _connection;
 
-        const Ip6Addr&  _leaderAddress;
-        uint8_t _mask;
-        int _leaderId;
-        int _id;
+        Ip6Addr _leaderId;
+        const Ip6Addr& _id;
 
         int _currentPhase;
         int _chasedPhase;
         
         int _maxHops;
         
-        int _tokenId;
-        int _waitingTokenId;
+        Ip6Addr _tokenId;
+        Ip6Addr _waitingTokenId;
 
         TokenType _sendType;
-        std::function< void ( bool, ElectionStatus ) >& _electionChangeCallback;
+        std::function< void ( Ip6Addr, ElectionStatus ) >& _electionChangeCallback;
 
         bool _allInitiated( ) {
             for ( const auto& [ _ , value ] : _channels ) {
@@ -68,19 +70,17 @@ namespace rofi::net {
             return true;
         }
 
-        void _determineNextNode() {
+        void _determineNextNode( ) {
             for ( const auto& [ key, _ ] : _channels ) {
                 if ( key != _parent && !_channels[ key ].sent ) {
                     _next = key;
                     return;
                 }
             }
-
             if ( _parent != "rl0" && !_channels[ _parent ].sent ) {
                 _next = _parent;
                 return;
             }
-
             // The traversal algorithm ends.
             _next = "rl0";
         }
@@ -91,41 +91,35 @@ namespace rofi::net {
             }
         }
 
-        void _resetTraversal( const std::string& interfaceName, int tokenId, int phase, int hops ) {
-            _resetSent();
+        void _resetTraversal( Ip6Addr tokenId, int phase, int hops ) {
+            //_resetSent();
             _tokenId = tokenId;
             _currentPhase = phase;
-            _parent = interfaceName;
             _chasedPhase = -1;
             _maxHops = hops;
-            _waitingTokenId = -1;
+            _waitingTokenId = Ip6Addr( "::" );
         }
 
-        bool _leaderActions( int id, const std::string& interfaceName ) {
-            _channels[ interfaceName ].leaderReceived = true;
-
+        bool _leaderActions( Ip6Addr id, const std::string& interfaceName ) {
             if ( id == _id ) {
-                _confChanges.push_back( { ConfigAction::ADD_IP, { "rl0", _leaderAddress, _mask } } );
-                _electionChangeCallback( true, ElectionStatus::LEADER );
+                _electionChangeCallback( _leaderId, ElectionStatus::LEADER );
             } else {
-                _confChanges.push_back( { ConfigAction::REMOVE_IP, { "rl0", _leaderAddress, _mask } } );
-                _electionChangeCallback( true, ElectionStatus::FOLLOWER );
+                _electionChangeCallback( _leaderId, ElectionStatus::FOLLOWER );
             }
 
             _sendType = TokenType::LEADER;
             _leaderId = id;
-            _resetTraversal( "rl0", -1, -1, -1 );
+            _resetTraversal( Ip6Addr( "::" ), -1, -1 );
+            _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
             return true;
         }
 
         bool _onAnnexingToken( const std::string& interfaceName,
                                Token receivedToken ) {
-            if ( _parent == "rl0" && receivedToken.identity != _id ) {
+            std::cout << "Annexing token " << receivedToken.identity << "\n";
+            if ( _parent == "rl0" ) {
                 _parent = interfaceName;
-                for ( const auto& [ key, _ ] : _channels ) {
-                    _channels[ key ].leaderReceived = false;
-                }
-                _electionChangeCallback( false, ElectionStatus::UNDECIDED );
+                _electionChangeCallback( _leaderId, ElectionStatus::UNDECIDED );
             }
 
             // Tokens of lower phases are redundant and thus killed off.
@@ -133,11 +127,9 @@ namespace rofi::net {
                 return false;
             }
 
-            // Sets up the conditions for leader token relay after restart.
-            if ( _sendType == TokenType::LEADER ) {
-                for ( const auto& [ key, _ ] : _channels ) {
-                    _channels[ key ].leaderReceived = false;
-                }
+            // Indication that a restart occured.
+            if ( _sendType == TokenType::LEADER || _sendType == TokenType::CHANGE ) {
+                _resetSent();
             }
 
             if ( _maxHops < receivedToken.hopCount ) {
@@ -146,7 +138,9 @@ namespace rofi::net {
 
             // A token of larger phase appears, the node has to reset to respect new traversal.
             if ( receivedToken.phase > _currentPhase ) {
-                _resetTraversal( interfaceName, receivedToken.identity, receivedToken.phase, receivedToken.hopCount );
+                _resetTraversal( receivedToken.identity, receivedToken.phase, receivedToken.hopCount );
+                _parent = interfaceName;
+                _resetSent();
                 _sendType = TokenType::ANNEXING;
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
                 _determineNextNode(); // Since this is when a 're-initialization' occurs, we should never receive 'rl0' as next here.
@@ -154,8 +148,10 @@ namespace rofi::net {
             }
 
             // A token is waiting here, met by another token. We combine them to a higher phase token.
-            if ( _waitingTokenId != -1 ) {
-                _resetTraversal( "rl0", _id, _currentPhase + 1, -1 );
+            if ( _waitingTokenId != Ip6Addr( "::" ) ) {
+                _resetTraversal( _id, _currentPhase + 1, -1 );
+                _parent = "rl0";
+                _resetSent();
                 _sendType = TokenType::ANNEXING;
                 _determineNextNode();
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
@@ -165,10 +161,12 @@ namespace rofi::net {
             // The node is annexed, any lower phase waiting tokens are deleted.
             if ( receivedToken.identity == _tokenId 
                  && _chasedPhase != receivedToken.phase ) {
-                _waitingTokenId = -1;
+                _waitingTokenId = Ip6Addr( "::" );
                 _determineNextNode();
                 if ( _next == "rl0" ) {
-                    return _leaderActions( _id, interfaceName );
+                    // This node won the election. It will now inform its followers and declare itself a leader after
+                    // the information round is finished.
+                    return _onLeaderToken( "rl0", _id );
                 }
                 _sendType = TokenType::ANNEXING;
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
@@ -180,7 +178,6 @@ namespace rofi::net {
                 _waitingTokenId = receivedToken.identity;
                 return false;
             }
-
             _chasedPhase = _currentPhase;
             _sendType = TokenType::CHASING;
             _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
@@ -196,7 +193,7 @@ namespace rofi::net {
             if ( receivedToken.phase == _currentPhase 
                  && receivedToken.identity == _tokenId  
                  && _maxHops > receivedToken.hopCount 
-                 && _chasedPhase != receivedToken.phase && _waitingTokenId == -1 ) {
+                 && _chasedPhase != receivedToken.phase && _waitingTokenId != Ip6Addr( "::" ) ) {
                 _chasedPhase = receivedToken.phase;
                 _sendType = TokenType::CHASING;
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
@@ -204,8 +201,9 @@ namespace rofi::net {
             } 
 
             // The chasing token catches up, the two tokens merge.
-            if ( receivedToken.phase == _currentPhase && _waitingTokenId != -1 ) {
-                _resetTraversal( "rl0", _id, _currentPhase + 1, -1 );
+            if ( receivedToken.phase == _currentPhase && _waitingTokenId != Ip6Addr( "::" ) ) {
+                _resetTraversal( _id, _currentPhase + 1, -1 );
+                _parent = "rl0";
                 _sendType = TokenType::ANNEXING;
                 _resetSent();
                 _determineNextNode();
@@ -231,25 +229,59 @@ namespace rofi::net {
         }
 
         bool _onLeaderToken( const std::string& interfaceName,
-                             int waveId ) {
-            for ( const auto& [ _ , recv ] : _channels ) {
-                if ( recv.leaderReceived ) {
-                    return false;
-                }
+                             Ip6Addr tokenId ) {
+            // This is the first time a leader token is forward to this node.
+            std::cout << "Received leader token\n";
+            if ( _sendType != TokenType::LEADER ) {
+                _resetSent();
+                _parent = interfaceName;
             }
+            _sendType = TokenType::LEADER;
+            _leaderId = tokenId;
+            _determineNextNode();
+            if ( _next == "rl0" || _next == _parent ) {
+                std::cout << "My parent is: " << _parent << "\n";
+                return _leaderActions( tokenId, interfaceName );
+            }
+            _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+            return true;
+        }
 
-            return _leaderActions( waveId, interfaceName );
+        bool _onChangeToken( const std::string& interfaceName ) {
+            if ( _leaderId == _id ) {
+                _electionChangeCallback( _leaderId, ElectionStatus::CHANGED_FOLLOWERS );
+                return false;
+            }
+            _sendType = TokenType::CHANGE;
+            _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+            return true;
+        }
+
+        bool _onConnectToken( const std::string& interfaceName, Ip6Addr otherLeader ) {
+            if ( otherLeader == _leaderId ) {
+                _sendType = TokenType::LEADER;
+                return false;
+            }
+            _resetSent();
+            _sendType = TokenType::ANNEXING;
+            _parent = "rl0";
+            _determineNextNode();
+            if ( _next == "rl0" ) {
+                return _leaderActions( _id, interfaceName );
+            } 
+            _tokenId = _id;
+            _currentPhase = 0;
+            _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+            return true;
         }
 
     public:
-        TraverseElection( int id, const Ip6Addr& leaderAddress, uint8_t mask, std::function< void( bool, ElectionStatus ) > cb )
-        : _leaderAddress( leaderAddress ), _mask( mask ), _id( id ), _electionChangeCallback( cb ) {
-            _leaderId = -1;
-            _tokenId = -1;
+        TraverseElection( const Ip6Addr& address, std::function< void ( Ip6Addr, ElectionStatus ) > cb )
+        : _id( address ), _leaderId( address ), _electionChangeCallback( cb ), 
+          _tokenId( Ip6Addr( "::" ) ), _waitingTokenId( Ip6Addr( "::" ) ) {
             _maxHops = -1;
             _currentPhase = -1;
             _chasedPhase = -1;
-            _waitingTokenId = -1;
         }
 
         virtual ~TraverseElection() = default;
@@ -267,6 +299,10 @@ namespace rofi::net {
                     return _onInitiateToken( interfaceName  );
                 case TokenType::LEADER:
                     return _onLeaderToken( interfaceName, receivedToken.identity );
+                case TokenType::CHANGE:
+                    return _onChangeToken( interfaceName );
+                case TokenType::CONNECT:
+                    return _onConnectToken( interfaceName, receivedToken.identity );
                 default:
                     assert( false && "Invalid message type receved\n" );
             }
@@ -280,21 +316,31 @@ namespace rofi::net {
                 return false;
             }
 
-            if ( _sendType == TokenType::ANNEXING) {
+            if ( _sendType == TokenType::ANNEXING  || _sendType == TokenType::LEADER ) {
                 if (  interface.name() != _next ) {
                     return false;
                 }
                 _channels[ interface.name() ].sent = true;
-                _maxHops++;
+                if ( _sendType == TokenType::ANNEXING ) {
+                    _maxHops++;
+                }
             }
 
             if ( _sendType == TokenType::CHASING && interface.name() != _next ) {
                 return false;
             }
 
+            if ( _sendType == TokenType::CHANGE && interface.name() != _parent ) {
+                return false;
+            }
+
+            if ( _sendType == TokenType::CONNECT && interface.name() != _connection ) {
+                return false;
+            }
+
             Token sendToken;
             sendToken.hopCount = _maxHops;
-            sendToken.identity = ( _sendType == TokenType::LEADER ) ? _leaderId : _tokenId;
+            sendToken.identity = ( _sendType == TokenType::LEADER || _sendType == TokenType::CONNECT ) ? _leaderId : _tokenId;
             sendToken.phase = _currentPhase;
             sendToken.type = _sendType;
 
@@ -315,27 +361,49 @@ namespace rofi::net {
         virtual void clearUpdates() { _confChanges.clear(); }
 
         virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
+            if ( _sendType != TokenType::LEADER && _sendType != TokenType::CHANGE ) {
+                std::cout << "SendType is not Leader or Change.\n";
+                return false;
+            }
+            std::cout << "Conn event\n";
             if ( connected ) {
+                std::cout << "Connection.\n";
                 _channels[ interface.name() ].sent = false;
+                std::cout << "Gonna send Connect\n";
+                _sendType = TokenType::CONNECT;
+                _connection = interface.name();
+                _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
+                return true;
             } else {
+                std::cout << "Disconnection.\n";
                 if ( _channels.find( interface.name() ) == _channels.end() ) {
                     return false;
                 }
+                std::cout << "Boutta erase " << interface.name() << "\n";
                 _channels.erase( interface.name() );
-            }
 
-            for ( const auto& [ key, _ ] : _channels ) {
-                _channels[ key ].leaderReceived = false;
+                if ( _parent == interface.name() ) {
+                    _sendType = TokenType::ANNEXING;
+                    _parent = "rl0";
+                    _resetSent();
+                    _determineNextNode();
+                    if ( _next == "rl0" ) {
+                        return _leaderActions( _id, interface.name() );
+                    } 
+                    _tokenId = _id;
+                    _currentPhase = 0;
+                    _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
+                    return true;
+                } else { 
+                    if ( _leaderId == _id ) {
+                        _electionChangeCallback( _leaderId, ElectionStatus::CHANGED_FOLLOWERS );
+                        return false;
+                    }
+                    _sendType = TokenType::CHANGE;
+                    _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
+                    return true;
+                }
             }
-            _determineNextNode();
-            if ( _next == "rl0" ) {
-                return _leaderActions( _id, interface.name() );
-            }
-            _sendType = TokenType::ANNEXING;
-            _tokenId = _id;
-            _currentPhase = 0;
-            _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
-
             return true;
         }
 
@@ -352,7 +420,7 @@ namespace rofi::net {
            
             _sendType = TokenType::NONE;
 
-            if ( _managedInterfaces.size() == 7 && _currentPhase == -1 ) {
+            if ( _managedInterfaces.size() == rofi::hal::RoFI::getLocalRoFI().getDescriptor().connectorCount + 1 && _currentPhase == -1 ) {
                 _sendType = TokenType::INITIATE;
                 return true;
             }
@@ -384,7 +452,7 @@ namespace rofi::net {
         virtual std::string info() const override {
             std::string str = Protocol::info();
             std::stringstream ss;
-            ss << "; leader id: " << _leaderId << " leader address: " << _leaderAddress;
+            ss << "; leader: " << _leaderId;
             return str  + ss.str();
         }
     };

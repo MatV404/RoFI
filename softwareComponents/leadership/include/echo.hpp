@@ -5,6 +5,7 @@
 #include <networking/interface.hpp>
 #include <networking/routingTable.hpp>
 
+#include <enums.hpp>
 #include <atoms/util.hpp>
 
 #include <vector>
@@ -12,25 +13,14 @@
 #include <set>
 #include <utility>
 
+
 namespace rofi::net {
+    using namespace rofi::leadership;
     class EchoElection : public Protocol {
-        struct InterfaceReceived {
-            bool regularReceived;
-            bool leaderReceived;
-            bool initiated;
-        };
-
-        enum MessageType {
-            ELECTION_MESSAGE,  // Carries basic election messages 
-            LEADER_MESSAGE,    // Announces leadership
-            INITIATE_MESSAGE,  // For the initiation of the algorithm
-        };
-
-        enum RelayType {
-            SEND_TO_NEIGHBORS, // All but parent
-            SEND_TO_PARENT,    // Only parent
-            SEND_TO_ALL,       // Everyone
-            DO_NOT_SEND,       // Stops message sending
+        struct ConnectionInfo {
+            bool receivedElection = false;
+            bool receivedLeader = false;
+            bool initiateReceived = false;
         };
 
         std::vector< std::reference_wrapper< const Interface > > _managedInterfaces;
@@ -38,194 +28,259 @@ namespace rofi::net {
 
         std::vector< std::pair< ConfigAction, ConfigChange > > _confChanges;
 
-        Ip6Addr _leaderAddress;
-        uint8_t _mask;
-        int _id;
-        
-        int _leaderId;
-        int _currentWaveId;
-        Interface::Name _parent;
+        Ip6Addr _id;
+        Ip6Addr _leaderId;
+        Ip6Addr _currentWaveId;
+
+        Interface::Name _parent = "rl0";
+        Interface::Name _connected = "rl0";
 
         MessageType _messageType;
-        RelayType _relayType;
-        bool _restart;
 
-        std::map< Interface::Name, bool > _pendingDiscoveryResponse;
-        std::map< Interface::Name, InterfaceReceived > _received;
-
-        bool _noLeaderReceived() {
-            for ( const auto& [ key, _ ] : _received ) {
-                if ( _received[ key ].leaderReceived ) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        bool _noPendingResponse() {
-            for ( const auto& [ key, _ ] : _pendingDiscoveryResponse ) {
-                if ( _pendingDiscoveryResponse[ key ] ) {
-                    std::cout << key << "\n";
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        bool _allRegularReceived() {
-            for ( const auto& [ key, _ ] : _received ) {
-                if ( !_received[ key ].regularReceived ) {
-                    return false;
-                }
-            }
-            return true;
-        }
+        std::map< Interface::Name, ConnectionInfo > _connections;
+        std::function< void ( Ip6Addr, ElectionStatus ) >& _electionChangeCallback;
 
         void _resetReceived() {
-            for ( const auto& [ key, _ ] : _received ) {
-                _received[key].leaderReceived = false;
-                _received[key].regularReceived = false;
+            for ( const auto& [ key, _ ] : _connections ) {
+                _connections[ key ].receivedLeader = false;
+                _connections[ key ].receivedElection = false;
             }
+        }
+
+        bool _allElectionReceived() {
+            for ( const auto& [ key, _ ] : _connections ) {
+                if ( !_connections[ key ].receivedElection ) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         bool _allInitiated() {
-            for ( const auto& [ _, value ] : _received ) {
-                if ( !value.initiated ) {
+            for ( const auto& [ key, _ ] : _connections ) {
+                if ( !_connections[ key ].initiateReceived ) {
                     return false;
                 }
             }
             return true;
         }
 
-        bool _onElectionMessage( const std::string& interfaceName, 
-                                 int otherWaveId ) {
-            if ( _restart && _id == _leaderId ) {
-                _confChanges.push_back( { ConfigAction::REMOVE_IP, { "rl0", _leaderAddress, _mask } } );
+        bool _leaderReceived( bool all ) {
+            for ( const auto& [ key, _ ] : _connections ) {
+                if ( !all && _connections[ key ].receivedLeader ) {
+                    return false;
+                }
+                if ( all && !_connections[ key ].receivedLeader ) {
+                    return false;
+                }
             }
+            return true;
+        }
 
-            if ( _currentWaveId < otherWaveId ) {
-                if ( _restart && _currentWaveId == _id ) {
-                    _relayType = RelayType::SEND_TO_NEIGHBORS;
+        bool _onElectionMessage( const std::string& interfaceName, Ip6Addr waveId ) {
+            if ( waveId > _currentWaveId ) {
+                // Restart occured.
+                if ( _currentWaveId == _id ) {
+                    _electionChangeCallback( _id, ElectionStatus::UNDECIDED );
+                    _parent = "rl0";
+                    _resetReceived();
                     _messageType = MessageType::ELECTION_MESSAGE;
-                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                    _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                     return true;
                 }
                 return false;
             }
 
-            _received[ interfaceName ].regularReceived = true;
+            _connections[ interfaceName ].receivedElection = true;
 
-            if ( _currentWaveId == otherWaveId ) {
-                if ( !_allRegularReceived() ) {
+            if ( waveId == _currentWaveId ) {
+                if ( !_allElectionReceived() ) {
                     return false;
                 }
 
-                // This node was elected.
-                if ( _id == otherWaveId ) {
+                // This means that the node was elected.
+                if ( waveId == _id ) {
+                    _electionChangeCallback( _id, ElectionStatus::LEADER );
                     _leaderId = _id;
-                    _resetReceived();
-                    _received[ interfaceName ].regularReceived = true;
+                    _parent = "rl0";
+                    _connections[ interfaceName ].receivedLeader = true;
+                    _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                     _messageType = MessageType::LEADER_MESSAGE;
-                    _relayType = RelayType::SEND_TO_ALL;
-                    _confChanges.push_back( { ConfigAction::ADD_IP, { "rl0", _leaderAddress, _mask } } );
-                } else {
-                    _messageType = MessageType::ELECTION_MESSAGE;
-                    _relayType = RelayType::SEND_TO_PARENT;
-                    _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                    return true;
                 }
+
+                _messageType = MessageType::ELECTION_MESSAGE;
+                _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                 return true;
             }
 
-            // _currentWaveId > otherWaveId
-            if ( _received.size() == 1 ) {
-                if ( _restart ) {
-                    _restart = false;
-                }
+            // waveId < _currentWaveId, restart.
+            if ( _messageType == MessageType::LEADER_MESSAGE ) {
+                _electionChangeCallback( _leaderId, ElectionStatus::UNDECIDED );
             }
-            _relayType = ( _received.size() == 1 ) ? RelayType::SEND_TO_PARENT : RelayType::SEND_TO_NEIGHBORS;
-            _messageType = MessageType::ELECTION_MESSAGE;
-            _resetReceived();
-            _received[ interfaceName ].regularReceived = true;
+            _currentWaveId = waveId;
             _parent = interfaceName;
-            _currentWaveId = otherWaveId;
-            _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+            _resetReceived();
+            _connections[ interfaceName ].receivedElection = true;
+
+            _messageType = MessageType::ELECTION_MESSAGE;
+            _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
             return true;
         }
 
-        bool _onLeaderMessage( const std::string& interfaceName, int otherWaveId ) {
-            if ( _noLeaderReceived() ) {
-                _received[ interfaceName ].leaderReceived = true;
-                _leaderId = otherWaveId;
+        bool _onLeaderMessage( const std::string& interfaceName, Ip6Addr waveId ) {
+            if ( ( _leaderReceived( false ) && waveId != _id ) || waveId < _leaderId ) {
+                _electionChangeCallback( waveId, ElectionStatus::FOLLOWER );
+                _connections[ interfaceName ].receivedLeader = true;
+                _leaderId = waveId;
                 _currentWaveId = _id;
-                _parent = "rl0";
+                _parent = interfaceName;
                 _messageType = MessageType::LEADER_MESSAGE;
-                _relayType = RelayType::SEND_TO_ALL;
-                _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                 return true;
             }
+
             return false;
         }
 
         bool _onInitiateMessage( const std::string& interfaceName ) {
-            _received[ interfaceName ].initiated = true;
+            _connections[ interfaceName ].initiateReceived = true;
+
             if ( _managedInterfaces.size() == 7 && _allInitiated() ) {
                 _messageType = MessageType::ELECTION_MESSAGE;
-                _relayType = RelayType::SEND_TO_NEIGHBORS;
-                _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                 return true;
             }
+
             return false;
+        }
+
+        bool _onConnectMessage( const std::string& interfaceName, Ip6Addr otherLeader ) {
+            if ( otherLeader < _leaderId ) {
+                return _onLeaderMessage( interfaceName, otherLeader );
+            }
+
+            if ( otherLeader == _leaderId ) {
+                return false;
+            }
+
+            if ( _id == _leaderId ) {
+                _electionChangeCallback( _leaderId, ElectionStatus::CHANGED_FOLLOWERS );
+                return false;
+            }
+
+            _messageType = MessageType::FOLLOWER_CHANGE_MESSAGE;
+            _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
+            return true;
+        }
+
+        bool _onConnectionEstablishedMessage() {
+            if ( _leaderId == _id ) {
+                _electionChangeCallback( _leaderId, ElectionStatus::CHANGED_FOLLOWERS );
+                return false;
+            }
+
+            _messageType = MessageType::FOLLOWER_CHANGE_MESSAGE;
+            _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
+            return true;
+        }
+
+        void _printMessage( bool received, const std::string& interfaceName,
+                            MessageType type, Ip6Addr waveId ) {
+            if ( received ) {
+                std::cout << "Received on " << interfaceName;
+            } else {
+                std::cout << "Sending to " << interfaceName; 
+            }
+
+            if ( MessageType::ELECTION_MESSAGE == type ) {
+                std::cout << " Election Message ";
+            } 
+            else if ( MessageType::LEADER_MESSAGE == type ) {
+                std::cout << " Leader Message ";
+            } else if ( MessageType::INITIATE_MESSAGE == type ) {
+                std::cout << " Initiate Message ";
+            } else if ( MessageType::CONNECT_MESSAGE == type ) {
+                std::cout << " Connection Message ";
+            } else {
+                std::cout << " Followers Changed Message ";
+            }
+
+            std::cout << "with ID " << waveId << "\n";
         }
 
     public:
-        EchoElection( int id, const Ip6Addr& leaderAddr, uint8_t mask )
-        : _id(id), _leaderAddress( leaderAddr ), _mask(mask) {
-            _leaderId = -1;
-            _currentWaveId = _id;
+        EchoElection( const Ip6Addr& addr, std::function< void( Ip6Addr, ElectionStatus ) > cb )
+        : _id( addr ), _leaderId( addr ), _currentWaveId( addr ), _electionChangeCallback( cb ) {
             _parent = "rl0";
-            _restart = false;
-            _messageType = MessageType::ELECTION_MESSAGE;
-            _relayType = RelayType::SEND_TO_NEIGHBORS;
+            _messageType = MessageType::INITIATE_MESSAGE;
         }
 
+        virtual ~EchoElection() = default;
+
         virtual bool onMessage( const std::string& interfaceName,
-                                rofi::hal::PBuf packetWithHeader ) override {
+                               rofi::hal::PBuf packetWithHeader ) override {
             auto packet = PBuf::own( pbuf_free_header( packetWithHeader.release(), IP6_HLEN ) );
+            
             MessageType type = as< MessageType >( packet.payload() );
-            int waveId = as< int >( packet.payload() + sizeof( MessageType ) );
-            _restart = as< bool >( packet.payload() + sizeof( MessageType ) + sizeof( int ) );
+            Ip6Addr waveId = as< Ip6Addr >( packet.payload() + sizeof( MessageType ) );
+
+            // _printMessage( true, interfaceName, type, waveId );
 
             switch ( type ) {
-                case MessageType::ELECTION_MESSAGE:
-                    return _onElectionMessage( interfaceName, waveId );
                 case MessageType::LEADER_MESSAGE:
                     return _onLeaderMessage( interfaceName, waveId );
-                default:
+                case MessageType::ELECTION_MESSAGE:
+                    return _onElectionMessage( interfaceName, waveId );
+                case MessageType::INITIATE_MESSAGE:
                     return _onInitiateMessage( interfaceName );
+                case MessageType::CONNECT_MESSAGE:
+                    return _onConnectMessage( interfaceName, waveId );
+                case MessageType::FOLLOWER_CHANGE_MESSAGE:
+                    return _onConnectionEstablishedMessage();
             }
-            return false;
 
+            std::cout << "Unexpected Behavior.\n";
+            return false;
         }
 
         virtual bool afterMessage( const Interface& interface, 
                                    std::function< void ( PBuf&& ) > fun, void* /* args */ ) override {
-            if ( _relayType == RelayType::DO_NOT_SEND ) {
+            if ( _managedInterfaces.size() != 7 || ! const_cast< Interface& >( interface ).isConnected() ) {
                 return false;
             }
             
-            if ( _relayType == RelayType::SEND_TO_NEIGHBORS && interface.name() == _parent ) {
+            if ( _messageType == MessageType::ELECTION_MESSAGE ) {
+                if (  _allElectionReceived() && interface.name() != _parent ) {
+                    return false;
+                }
+
+                if ( !_allElectionReceived() && interface.name() == _parent ) {
+                    return false;
+                }
+            }
+
+            if ( _messageType == MessageType::CONNECT_MESSAGE && interface.name() != _connected ) {
                 return false;
             }
 
-            if ( _relayType == RelayType::SEND_TO_PARENT && interface.name() != _parent ) {
+            if ( _messageType == MessageType::FOLLOWER_CHANGE_MESSAGE && interface.name() != _parent ) {
                 return false;
             }
 
-            auto packet = PBuf::allocate( sizeof( MessageType ) + sizeof( int ) + sizeof( bool ) );
+            
+
+            PBuf packet = PBuf::allocate( sizeof( MessageType ) + Ip6Addr::size() );
             as< MessageType >( packet.payload() ) = _messageType;
-            as< int >( packet.payload() + sizeof( MessageType ) ) = ( _messageType == MessageType::LEADER_MESSAGE ) ? _leaderId : _currentWaveId;
-            as< bool >( packet.payload() + sizeof( MessageType ) + sizeof( int ) ) = _restart;
+            if ( _messageType == MessageType::ELECTION_MESSAGE || _messageType == MessageType::INITIATE_MESSAGE ) {
+                as< Ip6Addr >( packet.payload() + sizeof( MessageType ) ) = _currentWaveId;
+                // _printMessage( false, interface.name(), _messageType, _currentWaveId );
+            } else {
+                as< Ip6Addr >( packet.payload() + sizeof( MessageType ) ) = _leaderId;
+                // _printMessage( false, interface.name(), _messageType, _leaderId );
+            }
             
+
             fun( std::move( packet ) );
             return false;
         }
@@ -243,19 +298,10 @@ namespace rofi::net {
                 return false;
             }
             _managedInterfaces.push_back( std::reference_wrapper( interface ) );
-
-            if ( const_cast< Interface& >( interface ).isConnected() ) {
-                _received[ interface.name() ].leaderReceived = false;
+            if ( const_cast< Interface& >( interface ).isConnected() && _connections.find( interface.name() ) == _connections.end() ) {
+                _connections[ interface.name() ].receivedElection = false;
             }
-
-            _relayType = RelayType::DO_NOT_SEND;
-
-            if ( _managedInterfaces.size() == 7 && _currentWaveId == _id ) {
-                _messageType = INITIATE_MESSAGE;
-                _relayType = SEND_TO_NEIGHBORS;
-            }
-
-            return true;
+            return false;
         }
 
         virtual bool removeInterface( const Interface& interface ) {
@@ -270,22 +316,45 @@ namespace rofi::net {
         }
 
         virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
-            if ( _restart ) {
-                return false;
-            }
+            if ( !connected ) {
+                // For some reason, the disconnect interface event is triggered twice. This is a safeguard against 
+                // restarting the same process twice.
+                if ( _connections.find( interface.name() ) == _connections.end() ) {
+                    return false;
+                }
 
-            _restart = true;
+                _connections.erase( interface.name() );
+                if ( interface.name() == _parent ) {
+                    _parent = "rl0";
+                    _resetReceived();
+                    _electionChangeCallback( _id, ElectionStatus::UNDECIDED );
+                    if ( _connections.size() == 0 ) {
+                        return _onElectionMessage( interface.name(), _id );
+                    }
+                    _messageType = MessageType::ELECTION_MESSAGE;
+                    _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
+                    return true;
+                }
+
+                if ( _id == _leaderId ) {
+                    _electionChangeCallback( _leaderId, ElectionStatus::CHANGED_FOLLOWERS );
+                    return false;
+                }
+
+                _messageType = MessageType::FOLLOWER_CHANGE_MESSAGE;
+                _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
+                return true;
+            }
 
             if ( connected ) {
-                _received[ interface.name() ].regularReceived = false;
-            } else {
-                _received.erase( interface.name() );
+                _connections[ interface.name() ].receivedElection = true;
+                _messageType = MessageType::CONNECT_MESSAGE;
+                _connected = interface.name();
+                _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
+                return true;
             }
 
-            _messageType = MessageType::ELECTION_MESSAGE;
-            _relayType = RelayType::SEND_TO_NEIGHBORS;
-            _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
-            return true;
+            return false;
         }
 
         virtual bool manages( const Interface& interface ) const override {
@@ -301,7 +370,7 @@ namespace rofi::net {
         virtual std::string info() const override {
             std::string str = Protocol::info();
             std::stringstream ss;
-            ss << "; leader id: " << _leaderId << " leader address: " << _leaderAddress;
+            ss << "; leader id: " << _leaderId;
             return str  + ss.str();
         }
     };

@@ -46,25 +46,14 @@ namespace rofi::leadership {
                 return coordinatorId == rhs.coordinatorId && sequenceNum == rhs.sequenceNum;
             }
         };
-
-        struct Node {
-            int id;
-            const Ip6Addr address;
-
-            bool operator< ( const Node& rhs ) const {
-                return id < rhs.id;
-            }
-
-            Node( int id, Ip6Addr addr ) : id( id ), address( addr ) {}
-        };
         
         int _id;
         InvitationStatus _nodeStatus;
         GroupNumber _groupNumber; //S(i).g
         int _groupCounter = 0; //S(i).counterF
 
-        Ip6Addr _coordinator;
         const Ip6Addr& _myAddr;
+        Ip6Addr _coordinator;
         std::set< Ip6Addr > _up; //S(i).up
         std::set< Ip6Addr > _foundCoordinators;
 
@@ -75,14 +64,13 @@ namespace rofi::leadership {
 
         udp_pcb* _pcb = nullptr;
         
-        std::mutex _waitMutex; //_functionMutex;
+        std::mutex _waitMutex;
         std::condition_variable _condVar;
 
-        std::function< std::pair< void*, int >() > _calculateTask;
-        std::function< void ( void*, int ) > _getTask;
+        std::function< PBuf () > _calculateTask;
+        std::function < void ( void * ) > _getTask;
         std::function< void () > _stopWork;
 
-        
         int _timeout;
         int _period;
         std::atomic< bool > _coordinatorContacted;
@@ -103,13 +91,18 @@ namespace rofi::leadership {
                     as< Ip6Addr >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) ) = _coordinator;
                     return packet;
                 }
-                case InvitationMessage::ARE_YOU_THERE:
+                case InvitationMessage::ARE_YOU_THERE: {
+                    auto packet = PBuf::allocate( sizeof( InvitationMessage ) + sizeof( GroupNumber ) + sizeof( int ) );
+                    as< InvitationMessage >( packet.payload() ) = messageType;
+                    as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) ) = _groupNumber;
+                    as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) ) = _id;
+                    return packet;
+                }
                 case InvitationMessage::ARE_YOU_COORDINATOR:
                 case InvitationMessage::ACCEPT: {
                     auto packet = PBuf::allocate( sizeof( InvitationMessage ) + sizeof( GroupNumber ) + sizeof( int ) );
                     as< InvitationMessage >( packet.payload() ) = messageType;
                     as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) ) = _groupNumber;
-                    as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) ) = _id;
                     return packet;
                 }
 
@@ -121,24 +114,26 @@ namespace rofi::leadership {
 
         PBuf _composeResponse( InvitationMessage messageType, bool answer ) {
             int size = sizeof( InvitationMessage ) + sizeof( bool );
-            if ( messageType == InvitationMessage::ARE_YOU_COORDINATOR_RES ) {
-                size += sizeof( int );
-            }
             auto packet = PBuf::allocate( size );
             as< InvitationMessage >( packet.payload() ) = messageType;
             as< bool >( packet.payload() + sizeof( InvitationMessage ) ) = answer;
-            if ( messageType == InvitationMessage::ARE_YOU_COORDINATOR_RES ) {
-                as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( bool ) ) = _id;
-            }
             return packet;
         }
 
         PBuf _composeReadyMessage( ) {
-            std::pair< void*, int > tasks = _calculateTask();
-            PBuf packet = PBuf::allocate( sizeof( InvitationMessage ) + sizeof( GroupNumber ) + tasks.second );
+            PBuf task = _calculateTask();
+            PBuf packet = PBuf::allocate( sizeof( InvitationMessage ) + sizeof( GroupNumber ) + task.size() * sizeof( uint8_t ) );
             as< InvitationMessage >( packet.payload() ) = InvitationMessage::READY;
             as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) ) = _groupNumber;
-            std::memcpy( ( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) ), tasks.first, tasks.second );
+            auto* taskData = task.payload();
+            auto* packetData = packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber );
+            for ( int i = 0; i <= task.size(); i++ ) {
+                *packetData = *taskData;
+                taskData++;
+                packetData++;
+            }
+
+            int size = as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) );
             return packet;
         }
 
@@ -153,11 +148,10 @@ namespace rofi::leadership {
 
         void _onAcceptMessage( const Ip6Addr addr, PBuf packet ) {
             GroupNumber group = as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) );
-            int id = as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) );
             if ( _nodeStatus == InvitationStatus::ELECTION 
                  && group == _groupNumber 
                  && _coordinator == _myAddr ) {
-                auto res = _up.emplace( addr );
+                _up.emplace( addr );
                 _awaited = _myAddr;
                 _sendMessage( addr, _composeMessage( InvitationMessage::ACCEPT_RES ) );
             }
@@ -209,14 +203,13 @@ namespace rofi::leadership {
                 return;
             }
             bool response = as< bool >( packet.payload() + sizeof( InvitationMessage ) );
-            int id = as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( bool ) );
             if ( response ) {
                 _foundCoordinators.emplace( addr );
             }
             _awaited = _myAddr;
         }
 
-        void _onInvitation( const Ip6Addr& addr, GroupNumber group, const Ip6Addr& newCoordinator ) {
+        void _onInvitation( GroupNumber group, const Ip6Addr& newCoordinator ) {
             if ( _nodeStatus != InvitationStatus::NORMAL ) {
                 return;
             }
@@ -247,9 +240,8 @@ namespace rofi::leadership {
             // _functionMutex.lock();
             GroupNumber group = as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) );
             if ( _nodeStatus == InvitationStatus::REORGANIZATION && _groupNumber == group ) {
-                void* task = packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber );
-                int size = packet.size() - ( sizeof( InvitationMessage ) + sizeof( GroupNumber ) ); 
-                _getTask( task, size );
+                size_t offset = sizeof( InvitationMessage ) + sizeof( GroupNumber ); 
+                _getTask( ( void * ) packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) );
                 _nodeStatus = InvitationStatus::NORMAL;
                 _sendMessage( addr, _composeMessage( InvitationMessage::READY_RES ) );
             }
@@ -267,8 +259,8 @@ namespace rofi::leadership {
             _up.clear();
             _up.emplace( _myAddr );
             _nodeStatus = InvitationStatus::REORGANIZATION;
-            std::pair< void*, int > tasks = _calculateTask();
-            _getTask( tasks.first, tasks.second );
+            PBuf task = _calculateTask();
+            _getTask( ( void* ) task.payload() );
             _nodeStatus = InvitationStatus::NORMAL;
             // _functionMutex.unlock();
         }
@@ -294,12 +286,11 @@ namespace rofi::leadership {
             }
 
             // Wait ... some time.
-            sleep( _period * 2  );
+            sleep( _timeout * 3 );
 
             // _functionMutex.lock();
             _nodeStatus = InvitationStatus::REORGANIZATION;
             // _functionMutex.unlock();
-
             for ( const Ip6Addr& address : _up ) {
                 _awaited = address;
                 _sendMessage( address, _composeReadyMessage() );
@@ -396,8 +387,8 @@ namespace rofi::leadership {
         */
         InvitationElection( int id, Ip6Addr& myAddr, u16_t port,  
                             std::vector< Ip6Addr > addresses, 
-                            std::function< std::pair< void*, int >() > calculateTask, 
-                            std::function< void ( void*, int ) > getTask,
+                            std::function< PBuf () > calculateTask, 
+                            std::function< void ( void* ) > getTask,
                             std::function< void () > stopWork,
                             int timeout, int period ) 
         : _myAddr( myAddr), _coordinator( myAddr ), _awaited( myAddr ) {
@@ -417,8 +408,8 @@ namespace rofi::leadership {
 
         InvitationElection( int id, Ip6Addr& myAddr, u16_t port,
                             std::vector< Ip6Addr > addresses,
-                            std::function< std::pair< void*, int >() > calculateTask, 
-                            std::function< void ( void*, int ) > getTask, 
+                            std::function< PBuf () > calculateTask, 
+                            std::function< void ( void* ) > getTask, 
                             std::function< void () > stopWork )
         : InvitationElection( id, myAddr, port, addresses, calculateTask, getTask, stopWork, 1, 3 ){};
 
@@ -452,7 +443,7 @@ namespace rofi::leadership {
             _recovery();
             std::thread thread{ [ this ]() {
                 this->_periodicCheck();
-            }};
+            } };
             thread.detach();
         }
 
@@ -500,7 +491,7 @@ namespace rofi::leadership {
                 case InvitationMessage::INVITATION: {
                     GroupNumber grpNum = as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) );
                     Ip6Addr newCoord = as< Ip6Addr >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) );
-                    _onInvitation( addr, grpNum, newCoord );
+                    _onInvitation( grpNum, newCoord );
                     return;
                 }
                 case InvitationMessage::READY: {

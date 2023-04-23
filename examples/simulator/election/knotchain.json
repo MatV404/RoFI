@@ -53,7 +53,7 @@
                 "sourceToDestination": "identity",
                 "positions": []
             },
-            "to": { "id": 2, "component": 7 }
+            "to": { "id": 5, "component": 7 }
         },
         {
             "point": [ 1, 0, 2 ],
@@ -80,13 +80,13 @@
                 "sourceToDestination": "identity",
                 "positions": []
             },
-            "to": { "id": 5, "component": 7 }
+            "to": { "id": 2, "component": 7 }
         }
     ],
     "moduleJoints": [
         {
             "from": { "id": 1, "connector": "B-Z" },
-            "to": { "id": 2, "connector": "A-Z" },
+            "to": { "id": 5, "connector": "A-Z" },
             "orientation": "South"
         },
         {
@@ -96,16 +96,16 @@
         },
         {
             "from": { "id": 4, "connector": "B-Z" },
-            "to": { "id": 5, "connector": "A-Z" },
+            "to": { "id": 2, "connector": "A-Z" },
             "orientation": "South"
         },
         {
-            "from": { "id": 2, "connector": "B-X" },
+            "from": { "id": 5, "connector": "B-X" },
             "to": { "id": 3, "connector": "B+X" },
             "orientation": "South"
         },
         {
-            "from": { "id": 2, "connector": "A+X" },
+            "from": { "id": 5, "connector": "A+X" },
             "to": { "id": 3, "connector": "A-X" },
             "orientation": "South"
         }

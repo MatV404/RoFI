@@ -5,9 +5,11 @@
 #include <condition_variable>
 #include <chrono>
 #include <networking/networkManager.hpp>
+#include <networking/protocols/rrp.hpp>
 #include <networking/protocols/simpleReactive.hpp>
+#include <networking/protocols/simplePeriodic.hpp>
 #include <invitation.hpp>
-#include <query.hpp>
+#include <LRElect.hpp>
 #include <atoms/units.hpp>
 #include <random>
 
@@ -27,15 +29,28 @@ Ip6Addr createAddress( int id ) {
     return Ip6Addr( ss.str() );
 }
 
-std::pair< void*, int > calcTask() {
+PBuf calcTask() {
     std::cout << "Calctask\n";
-    int task = 1;
-    return std::pair< void*, int >( &task, sizeof( int ) * 1 );
+    auto task = PBuf::allocate(sizeof( int ) * 6 );
+    int size = 5;
+    as< int >( task.payload() ) = size;
+    auto* data = task.payload() + sizeof( int );
+    for ( int i = 0; i < 5; i++ ) {
+        as< int >( data ) = i;
+        data = data + sizeof( int );
+    }
+    return task;
 }
 
-void getTask ( void* task, int size ) {
-    std::cout << "getTask\n";
-    // std::cout << "Task: " << *as< int* >( task ) << "\n";
+void getTask ( void* data ) {
+    int size = as< int >( data );
+    std::cout << "Size is: " << size << "\n";
+    std::cout << "Task: ";
+    
+    for ( int i = 1; i <= size; i++ ) {
+        std::cout << as< int >( data + i * ( sizeof( int ) ) ) << " ";
+    }
+    std::cout << "\n";
 }
 
 
@@ -44,7 +59,22 @@ bool workStop = false;
 void stopWork() {
     std::cout << "Stopping work\n";
     workStop = true;
-    std::cout << "Stopped work\n";
+}
+
+void changeConn( bool connect ) {
+    int connector;
+    std::cout << "Connector to " << ( ( connect ) ? "connect" : "disconnect" ) << "(0 - 5):";
+    std::cin >> connector;
+
+    auto rofi = RoFI::getLocalRoFI();
+
+    if ( connector >= 0 && connector < 6 ) {
+        if ( connect ) {
+            rofi.getConnector( connector ).connect();
+        } else {
+            rofi.getConnector( connector ).disconnect();
+        }
+    }
 }
 
 void testInvitation( NetworkManager& netmg, int id, Ip6Addr& addr ) {
@@ -58,70 +88,142 @@ void testInvitation( NetworkManager& netmg, int id, Ip6Addr& addr ) {
     addresses.push_back( ( createAddress( 3 ) ) );
     addresses.push_back( ( createAddress( 4 ) ) );
     addresses.push_back( ( createAddress( 5 ) ) );
-    addresses.push_back( ( createAddress( 6 ) ) );
-    addresses.push_back( ( createAddress( 7 ) ) );
+    // addresses.push_back( ( createAddress( 6 ) ) );
+    // addresses.push_back( ( createAddress( 7 ) ) );
 
 
     InvitationElection election( id, addr, 7776, addresses, calcTask, getTask, stopWork, 1, 3 );
     election.setUp();
     election.start();
 
-    while ( true ) {
-        int result = distr(gen);
-        if ( result <= NODE_STATE_CHANGE_CHANCE ) {
-            std::cout << "Node shutting down\n";
-            election.switchDown();
-        }
+    if ( NODE_STATE_CHANGE_CHANCE != -1 ) {
+        while ( true ) {
+            int result = distr(gen);
+            if ( result <= NODE_STATE_CHANGE_CHANCE ) {
+                std::cout << "Node shutting down\n";
+                election.switchDown();
+            }
 
-        if ( !workStop && election.getLeader().second ) {
-            std::cout << "Node " << id << " is currently performing work under leader " << election.getLeader().first << "\n";
-            std::cout << netmg.routingTable();
-        }
+            if ( !workStop && election.getLeader().second ) {
+                std::cout << "Node " << id << " is currently performing work under leader " << election.getLeader().first << "\n";
+                std::cout << netmg.routingTable();
+            }
 
-        if ( workStop ) {
+            if ( workStop ) {
+                if ( election.getLeader().second ) {
+                    workStop = false;
+                }
+            }
+
+            sleep( 3 );
+        }
+    }
+
+    NetworkManagerCli netcli( netmg );
+    std::string line;
+    while ( std::getline( std::cin, line ) ) {
+        if ( line.empty() ) {
+            std::cout << ">> ";
+            continue;
+        } else if ( line == "end" ) {
+            return;
+        } else if ( line == "leader" || line == "lead" ) {
+            std::cout << "My (" << addr << ") leader: " << election.getLeader().first << "\n";
             if ( election.getLeader().second ) {
-                workStop = false;
+                std::cout << "The leader election of this leader finished and tasks have been redistributed.\n";
             }
         }
 
-        sleep( 3 );
+        try {
+            if ( line == "connect" || line == "disconnect" ) {
+                changeConn( line == "connect" );
+            } else if ( netcli.command( line ) ) {}
+        } catch ( const std::exception& exc ) {
+            std::cout << "Bad input: " << exc.what() << std::endl;
+        }
+
+        std::cout << ">> ";
     }
 }
 
-void testQuery( NetworkManager& net, int id, Ip6Addr& addr ) {
+// void testQuery( NetworkManager& net, int id, Ip6Addr& addr ) {
+//     std::random_device rd;
+//     std::mt19937 gen(rd());
+//     std::uniform_int_distribution<> distr(0, 100);
+
+//     std::set< Ip6Addr > addresses;
+//     for ( int i = 1; i <= 5; i++ ) {
+//         addresses.emplace( createAddress( i ) );
+//     }
+
+//     QueryElect election( net, addr, &addresses, 7776, 2 );
+//     election.start();
+//     election.setUp();
+
+//     int counter = 0;
+//     bool off = false;
+
+//     while ( true ) {
+//         counter++;
+//         int result = ( counter == 3 ) ? distr(gen) : 100;
+//         if ( off && counter == 3 ) {
+//             result = NODE_STATE_CHANGE_CHANCE;   
+//         }
+//         if ( result <= NODE_STATE_CHANGE_CHANCE ) {
+//             std::cout << "Switching off\n";
+//             counter = 0;
+//             off = !off;
+//             election.switchDown();
+//         } else if ( !election.isDown() ) {
+//             std::cout << "My (" << addr << ") leader: " << election.leader() << "\n";
+//             std::cout << net.routingTable();
+//         }
+        
+//         sleep( 3 );
+//     }
+// }
+
+void testLR( NetworkManager& net, int id, Ip6Addr& addr ) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> distr(0, 100);
 
-    std::set< Ip6Addr > addresses;
-    for ( int i = 1; i <= 5; i++ ) {
-        addresses.emplace( createAddress( i ) );
+    LRElect election( net, addr, 5 );
+    election.start( id );
+
+    if ( NODE_STATE_CHANGE_CHANCE != -1 ) {
+        while ( true ) {
+            int result = distr(gen);
+            if ( result <= NODE_STATE_CHANGE_CHANCE ) {
+                std::cout << "Node changing states.\n";
+                election.switchDown();
+            }
+
+            sleep( 3 );
+        }
     }
 
-    QueryElect election( net, addr, &addresses, 7776, 2 );
-    election.start();
-    election.setUp();
-
-    int counter = 0;
-    bool off = false;
-
-    while ( true ) {
-        counter++;
-        int result = ( counter == 3 ) ? distr(gen) : 100;
-        if ( off && counter == 3 ) {
-            result = NODE_STATE_CHANGE_CHANCE;   
+    NetworkManagerCli netcli( net );
+    std::string line;
+    while ( std::getline( std::cin, line ) ) {
+        if ( line.empty() ) {
+            std::cout << ">> ";
+            continue;
+        } else if ( line == "end" ) {
+            return;
+        } else if ( line == "leader" || line == "lead" ) {
+            std::cout << "My (" << addr << ") leader: " << election.getLeader() << "\n";
         }
-        if ( result <= NODE_STATE_CHANGE_CHANCE ) {
-            std::cout << "Switching off\n";
-            counter = 0;
-            off = !off;
-            election.switchDown();
-        } else if ( !election.isDown() ) {
-            std::cout << "My (" << addr << ") leader: " << election.leader() << "\n";
-            std::cout << net.routingTable();
+
+        try {
+            if ( line == "connect" || line == "disconnect" ) {
+                changeConn( line == "connect" );
+            } else if ( netcli.command( line ) ) {}
+        } catch ( const std::exception& exc ) {
+            std::cout << "Bad input: " << exc.what() << std::endl;
         }
-        
-        sleep( 3 );
+
+        std::cout << ">> ";
     }
 }
 
@@ -140,7 +242,7 @@ void testTolerant( bool invitationTest ) {
     std::cout << "Current Address: " << net.interface( "rl0" ).getAddress().front().first << "\n";
     net.setUp();
 
-    auto proto = net.addProtocol( SimpleReactive() );
+    auto proto = net.addProtocol( RRP() );
     net.setProtocol( *proto );
 
     if ( invitationTest ) {
@@ -148,5 +250,24 @@ void testTolerant( bool invitationTest ) {
         return;
     }
 
-    testQuery( net, id, addr );
+    testLR( net, id, addr );
+    // std::string line;
+    // while ( std::getline( std::cin, line ) ) {
+    //     if ( line.empty() ) {
+    //         std::cout << ">> ";
+    //         continue;
+    //     } else if ( line == "end" ) {
+    //         return;
+    //     }
+
+    //     try {
+    //         if ( line == "connect" || line == "disconnect" ) {
+    //             changeConn( line == "connect" );
+    //         }
+    //     } catch ( const std::exception& exc ) {
+    //         std::cout << "Bad input: " << exc.what() << std::endl;
+    //     }
+
+    //     std::cout << ">> ";
+    // }
 }
