@@ -17,9 +17,8 @@ total_counter: int = 0
 
 def filter( packet, sender, receiver ):
     global total_counter, counted_addrs, routing_addrs
-    print(bytearray(packet))
     pack_array = bytearray(packet)
-    print(pack_array[24:40])
+    # print(pack_array[24:40]) = The address we want to check
     if pack_array[24:40] in counted_addrs:
         total_counter += 1
         print(total_counter)
