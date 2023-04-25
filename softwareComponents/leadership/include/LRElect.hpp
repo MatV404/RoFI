@@ -37,7 +37,9 @@ namespace rofi::leadership {
 
         void _increaseTimeJoined() {
             _timeJoined++;
-            _leader = Ip6Addr( "::" );
+            if ( _leader == _myAddr) {
+                _minTimeJoined = _timeJoined;
+            }
         }
 
         void _leaderFailure() {

@@ -28,7 +28,7 @@ namespace rofi::net {
 
         void _eraseOldHistory( Ip6Addr& addr, unsigned int seqNum ) {
             for ( auto i = _history.begin(); i != _history.end(); ) {
-                if ( std::get< 0 >( *i ) == addr && std::get< 2 > ( *i ) < seqNum - 1 ) {
+                if ( std::get< 0 >( *i ) == addr && std::get< 2 > ( *i ) <= seqNum - 1 ) {
                     i = _history.erase( i );
                 } else {
                     ++i;
@@ -59,7 +59,7 @@ namespace rofi::net {
             }
 
             _sender = interfaceName;
-            if ( seqNum > 2 ) {
+            if ( seqNum >= 2 ) {
                 _eraseOldHistory( senderAddr, seqNum );
             }
 

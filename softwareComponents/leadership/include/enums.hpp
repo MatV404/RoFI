@@ -15,9 +15,9 @@ namespace rofi::leadership {
     };
 
     enum ElectionStatus {
-        UNDECIDED,
-        LEADER,
-        FOLLOWER,
-        CHANGED_FOLLOWERS,
+        UNDECIDED,         // Election is currently happening
+        LEADER,            // Node became leader
+        FOLLOWER,          // Node became follower
+        CHANGED_FOLLOWERS, // Node is leader, something connected or disconnected
     };
 }
