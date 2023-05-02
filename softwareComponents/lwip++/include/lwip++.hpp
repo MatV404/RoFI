@@ -49,11 +49,35 @@ struct Ip6Addr : ip6_addr_t {
     }
 
     bool operator<( const Ip6Addr& o ) const {
-        return addr[ 0 ] < o.addr[ 0 ]
-            || ( addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] < addr[ 1 ] )
-            || ( addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] == o.addr[ 1 ] && addr[ 2 ] < o.addr[ 2 ] )
-            || ( addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] == o.addr[ 1 ]
-                                          && addr[ 2 ] == o.addr[ 2 ] && addr[ 3 ] < o.addr[ 3 ] );
+        if ( addr[ 0 ] < o.addr[ 0 ] ) {
+            return true;
+        }
+        if ( addr[ 0 ] > o.addr[ 0 ] ) {
+            return false;
+        }
+
+        if ( addr[ 1 ] < o.addr[ 1 ] ) {
+            return true;
+        }
+        if ( addr[ 1 ] > o.addr[ 1 ] ) {
+            return false;
+        }
+
+        if ( addr[ 2 ] < o.addr[ 2 ] ) {
+            return true;
+        }
+        if ( addr[ 2 ] > o.addr[ 2 ] ) {
+            return false;
+        }
+
+        if ( addr[ 3 ] < o.addr[ 3 ] ) {
+            return true;
+        }
+        if ( addr[ 3 ] > o.addr[ 3 ] ) {
+            return false;
+        }
+
+        return false;
     }
 
     bool operator>( const Ip6Addr& o ) const {
