@@ -32,6 +32,7 @@ namespace rofi::leadership {
 
             if ( addr == _leader ) {
                 _leaderContact = true;
+                _minTimeJoined = logTime;
             }
         }
 
