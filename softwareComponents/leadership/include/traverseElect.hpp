@@ -116,7 +116,6 @@ namespace rofi::net {
 
         bool _onAnnexingToken( const std::string& interfaceName,
                                Token receivedToken ) {
-            std::cout << "Annexing token " << receivedToken.identity << "\n";
             if ( _parent == "rl0" ) {
                 _parent = interfaceName;
                 _electionChangeCallback( _leaderId, ElectionStatus::UNDECIDED );
@@ -193,7 +192,7 @@ namespace rofi::net {
             if ( receivedToken.phase == _currentPhase 
                  && receivedToken.identity == _tokenId  
                  && _maxHops > receivedToken.hopCount 
-                 && _chasedPhase != receivedToken.phase && _waitingTokenId != Ip6Addr( "::" ) ) {
+                 && _chasedPhase != receivedToken.phase && _waitingTokenId == Ip6Addr( "::" ) ) {
                 _chasedPhase = receivedToken.phase;
                 _sendType = TokenType::CHASING;
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
@@ -231,7 +230,6 @@ namespace rofi::net {
         bool _onLeaderToken( const std::string& interfaceName,
                              Ip6Addr tokenId ) {
             // This is the first time a leader token is forward to this node.
-            std::cout << "Received leader token\n";
             if ( _sendType != TokenType::LEADER ) {
                 _resetSent();
                 _parent = interfaceName;
@@ -240,7 +238,6 @@ namespace rofi::net {
             _leaderId = tokenId;
             _determineNextNode();
             if ( _next == "rl0" || _next == _parent ) {
-                std::cout << "My parent is: " << _parent << "\n";
                 return _leaderActions( tokenId, interfaceName );
             }
             _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
@@ -362,24 +359,18 @@ namespace rofi::net {
 
         virtual bool onInterfaceEvent( const Interface& interface, bool connected ) override {
             if ( _sendType != TokenType::LEADER && _sendType != TokenType::CHANGE ) {
-                std::cout << "SendType is not Leader or Change.\n";
                 return false;
             }
-            std::cout << "Conn event\n";
             if ( connected ) {
-                std::cout << "Connection.\n";
                 _channels[ interface.name() ].sent = false;
-                std::cout << "Gonna send Connect\n";
                 _sendType = TokenType::CONNECT;
                 _connection = interface.name();
                 _confChanges.push_back( { ConfigAction::RESPOND, { interface.name(), Ip6Addr( "::" ), 0 } } );
                 return true;
             } else {
-                std::cout << "Disconnection.\n";
                 if ( _channels.find( interface.name() ) == _channels.end() ) {
                     return false;
                 }
-                std::cout << "Boutta erase " << interface.name() << "\n";
                 _channels.erase( interface.name() );
 
                 if ( _parent == interface.name() ) {
