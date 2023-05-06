@@ -78,6 +78,9 @@ void changeConn( bool connect ) {
 }
 
 void testInvitation( NetworkManager& netmg, int id, Ip6Addr& addr ) {
+    auto proto = netmg.addProtocol( SimpleReactive() );
+    netmg.setProtocol( *proto );
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> distr(0, 100);
@@ -146,43 +149,6 @@ void testInvitation( NetworkManager& netmg, int id, Ip6Addr& addr ) {
     }
 }
 
-// void testQuery( NetworkManager& net, int id, Ip6Addr& addr ) {
-//     std::random_device rd;
-//     std::mt19937 gen(rd());
-//     std::uniform_int_distribution<> distr(0, 100);
-
-//     std::set< Ip6Addr > addresses;
-//     for ( int i = 1; i <= 5; i++ ) {
-//         addresses.emplace( createAddress( i ) );
-//     }
-
-//     QueryElect election( net, addr, &addresses, 7776, 2 );
-//     election.start();
-//     election.setUp();
-
-//     int counter = 0;
-//     bool off = false;
-
-//     while ( true ) {
-//         counter++;
-//         int result = ( counter == 3 ) ? distr(gen) : 100;
-//         if ( off && counter == 3 ) {
-//             result = NODE_STATE_CHANGE_CHANCE;   
-//         }
-//         if ( result <= NODE_STATE_CHANGE_CHANCE ) {
-//             std::cout << "Switching off\n";
-//             counter = 0;
-//             off = !off;
-//             election.switchDown();
-//         } else if ( !election.isDown() ) {
-//             std::cout << "My (" << addr << ") leader: " << election.leader() << "\n";
-//             std::cout << net.routingTable();
-//         }
-        
-//         sleep( 3 );
-//     }
-// }
-
 void testLR( NetworkManager& net, int id, Ip6Addr& addr ) {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -242,32 +208,10 @@ void testTolerant( bool invitationTest ) {
     std::cout << "Current Address: " << net.interface( "rl0" ).getAddress().front().first << "\n";
     net.setUp();
 
-    auto proto = net.addProtocol( RRP() );
-    net.setProtocol( *proto );
-
     if ( invitationTest ) {
         testInvitation( net, id, addr );
         return;
     }
 
     testLR( net, id, addr );
-    // std::string line;
-    // while ( std::getline( std::cin, line ) ) {
-    //     if ( line.empty() ) {
-    //         std::cout << ">> ";
-    //         continue;
-    //     } else if ( line == "end" ) {
-    //         return;
-    //     }
-
-    //     try {
-    //         if ( line == "connect" || line == "disconnect" ) {
-    //             changeConn( line == "connect" );
-    //         }
-    //     } catch ( const std::exception& exc ) {
-    //         std::cout << "Bad input: " << exc.what() << std::endl;
-    //     }
-
-    //     std::cout << ">> ";
-    // }
 }
