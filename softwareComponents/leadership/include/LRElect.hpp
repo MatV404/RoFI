@@ -79,6 +79,12 @@ namespace rofi::leadership {
         }
 
     public:
+        /** 
+         * The LRElect class constructor.
+         * @param net A reference to a RoFI network manager class instance.
+         * @param addr A reference to the address that this module will use as its identity for the election. Must be unique.
+         * @param period The period of seconds between election mechanisms. Default = 3.
+        */
         LRElect( NetworkManager& net, const Ip6Addr& addr, unsigned int period ) : _net( net ), _myAddr( addr ),  _leader( addr ) {
             _timeJoined = 0;
             _minTimeJoined = 0;
@@ -88,8 +94,14 @@ namespace rofi::leadership {
             net.setProtocol( *prot );
         }
 
+        LRElect( NetworkManager& net, const Ip6Addr& addr ) : LRElect( net, addr, 3 ){}
+
+        /**
+         * Start the algorithm.
+         * @param id Used for an arbitrary wait time as described in the original algorithm description.
+        */
         void start( int id ) {
-            sleep( id );
+            sleep( id ); // May not be necessary.
             std::thread thread{ [ this ]() {
                 this->_periodic();
             } };
@@ -100,6 +112,10 @@ namespace rofi::leadership {
             return _leader;
         }
 
+        /**
+         * Used to simulate module failure. 
+         * Only for debugging purposes.
+        */
         void switchDown() {
             _down = !_down;
         }

@@ -356,15 +356,15 @@ namespace rofi::leadership {
     public:
         /**
          * The Invitation Election class constructor.
-         * @param id - The RoFI module's ID, unique to the configuration.
-         * @param myAddr - the address used for identification by the module. Should be unique and contained in addresses.
-         * @param port - The port for the underlying networking service used for the election.
-         * @param addresses - a vector of all possible node addresses within the system, make sure there is only one address per one module.
-         * @param calculateTask - a function used when the election requires a task for distribution.
-         * @param getTask - a function used when the election receives a task and is passing it onto the rest of the code.
-         * @param stopWork - a function that is invoked when the node status becomes unstable, an election is ongoing, and work needs to be stopped until new tasks are distributed.
-         * @param timeout - allows the user to specify how long an operation waits for a response until timeout is decalred. The default is 1.
-         * @param period - allows the user to specify how long the module waits between checks for the existence of a leader or other groups. The default is 3.
+         * @param id The RoFI module's ID, unique to the configuration.
+         * @param myAddr the address used for identification by the module. Should be unique and contained in addresses.
+         * @param port The port for the underlying networking service used for the election.
+         * @param addresses a vector of all possible node addresses within the system, make sure there is only one address per one module.
+         * @param calculateTask a function used when the election requires a task for distribution.
+         * @param getTask a function used when the election receives a task and is passing it onto the rest of the code.
+         * @param stopWork a function that is invoked when the node status becomes unstable, an election is ongoing, and work needs to be stopped until new tasks are distributed.
+         * @param timeout allows the user to specify how long an operation waits for a response until timeout is decalred. The default is 1.
+         * @param period allows the user to specify how long the module waits between checks for the existence of a leader or other groups. The default is 3.
         */
         InvitationElection( int id, Ip6Addr& myAddr, u16_t port,  
                             std::vector< Ip6Addr > addresses, 
