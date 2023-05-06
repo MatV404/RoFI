@@ -92,7 +92,6 @@ namespace rofi::net {
         }
 
         void _resetTraversal( Ip6Addr tokenId, int phase, int hops ) {
-            //_resetSent();
             _tokenId = tokenId;
             _currentPhase = phase;
             _chasedPhase = -1;

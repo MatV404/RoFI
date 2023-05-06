@@ -185,30 +185,6 @@ namespace rofi::net {
             return true;
         }
 
-        void _printMessage( bool received, const std::string& interfaceName,
-                            MessageType type, Ip6Addr waveId ) {
-            if ( received ) {
-                std::cout << "Received on " << interfaceName;
-            } else {
-                std::cout << "Sending to " << interfaceName; 
-            }
-
-            if ( MessageType::ELECTION_MESSAGE == type ) {
-                std::cout << " Election Message ";
-            } 
-            else if ( MessageType::LEADER_MESSAGE == type ) {
-                std::cout << " Leader Message ";
-            } else if ( MessageType::INITIATE_MESSAGE == type ) {
-                std::cout << " Initiate Message ";
-            } else if ( MessageType::CONNECT_MESSAGE == type ) {
-                std::cout << " Connection Message ";
-            } else {
-                std::cout << " Followers Changed Message ";
-            }
-
-            std::cout << "with ID " << waveId << "\n";
-        }
-
     public:
         EchoElection( const Ip6Addr& addr, std::function< void( Ip6Addr, ElectionStatus ) > cb )
         : _id( addr ), _leaderId( addr ), _currentWaveId( addr ), _electionChangeCallback( cb ) {
@@ -224,8 +200,6 @@ namespace rofi::net {
             
             MessageType type = as< MessageType >( packet.payload() );
             Ip6Addr waveId = as< Ip6Addr >( packet.payload() + sizeof( MessageType ) );
-
-            // _printMessage( true, interfaceName, type, waveId );
 
             switch ( type ) {
                 case MessageType::LEADER_MESSAGE:
@@ -274,10 +248,8 @@ namespace rofi::net {
             as< MessageType >( packet.payload() ) = _messageType;
             if ( _messageType == MessageType::ELECTION_MESSAGE || _messageType == MessageType::INITIATE_MESSAGE ) {
                 as< Ip6Addr >( packet.payload() + sizeof( MessageType ) ) = _currentWaveId;
-                // _printMessage( false, interface.name(), _messageType, _currentWaveId );
             } else {
                 as< Ip6Addr >( packet.payload() + sizeof( MessageType ) ) = _leaderId;
-                // _printMessage( false, interface.name(), _messageType, _leaderId );
             }
             
 
