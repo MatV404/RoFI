@@ -163,29 +163,23 @@ namespace rofi::leadership {
                 return;
             }
             _awaited = _myAddr;
-            // _functionMutex.lock();
             _nodeStatus = InvitationStatus::REORGANIZATION;
-            // _functionMutex.unlock();
         }
 
         void _onAreYouThere( const Ip6Addr& addr, GroupNumber groupNum ) {
-            // _functionMutex.lock();
             auto res = std::find_if( _up.begin(), _up.end(), [ addr ]( const Ip6Addr& address ) { return address == addr; } );
             _sendMessage( addr, _composeResponse( InvitationMessage::ARE_YOU_THERE_RES, 
                                                   groupNum == _groupNumber 
                                                   && _myAddr == _coordinator 
                                                   && res != _up.end() ) );
-            // _functionMutex.unlock();
         }
 
         void _onAreYouCoordinator( const Ip6Addr& addr, GroupNumber groupNum ) {
-            // _functionMutex.lock();
             if ( addr == _coordinator && _groupNumber == groupNum ) {
                 _coordinatorContacted = true;
             }
             _sendMessage( addr, _composeResponse( InvitationMessage::ARE_YOU_COORDINATOR_RES, 
                                                           _nodeStatus == InvitationStatus::NORMAL && _myAddr == _coordinator ) );
-            // _functionMutex.unlock();
         }
 
         void _onAreYouThereRes( const Ip6Addr& addr, PBuf packet ) {
@@ -237,7 +231,6 @@ namespace rofi::leadership {
         }
 
         void _onReadyMessage( const Ip6Addr& addr, PBuf packet ) {
-            // _functionMutex.lock();
             GroupNumber group = as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) );
             if ( _nodeStatus == InvitationStatus::REORGANIZATION && _groupNumber == group ) {
                 size_t offset = sizeof( InvitationMessage ) + sizeof( GroupNumber ); 
@@ -245,11 +238,9 @@ namespace rofi::leadership {
                 _nodeStatus = InvitationStatus::NORMAL;
                 _sendMessage( addr, _composeMessage( InvitationMessage::READY_RES ) );
             }
-            // _functionMutex.unlock();
         }
 
         void _recovery() {
-            // _functionMutex.lock();
             _nodeStatus = InvitationStatus::ELECTION;
             _stopWork();
             _groupCounter++;
@@ -262,11 +253,9 @@ namespace rofi::leadership {
             PBuf task = _calculateTask();
             _getTask( ( void* ) task.payload() );
             _nodeStatus = InvitationStatus::NORMAL;
-            // _functionMutex.unlock();
         }
 
         void _mergeGroups() {
-            // _functionMutex.lock();
             _nodeStatus = InvitationStatus::ELECTION;
             _stopWork();
             _groupCounter++;
@@ -274,10 +263,9 @@ namespace rofi::leadership {
             _groupNumber.coordinatorId = _id;
             _coordinator = _myAddr;
 
-            std::set< Ip6Addr > tempSet = _up; // ToDo: Use references.
+            std::set< Ip6Addr > tempSet = _up; // Use references? Probably not, since we need to copy the set as it gets erased later.
             _up.clear();
             _up.emplace( _myAddr );
-            // _functionMutex.unlock();
             for ( const Ip6Addr& coordinator : _foundCoordinators ) {
                 _sendMessage( coordinator, _composeMessage( InvitationMessage::INVITATION ) );
             }
@@ -287,10 +275,7 @@ namespace rofi::leadership {
 
             // Wait ... some time.
             sleep( _timeout * 3 );
-
-            // _functionMutex.lock();
             _nodeStatus = InvitationStatus::REORGANIZATION;
-            // _functionMutex.unlock();
             for ( const Ip6Addr& address : _up ) {
                 _awaited = address;
                 _sendMessage( address, _composeReadyMessage() );
@@ -302,10 +287,7 @@ namespace rofi::leadership {
                 }
                 lock.unlock();
             }
-
-            // _functionMutex.lock();
             _nodeStatus = InvitationStatus::NORMAL;
-            // _functionMutex.unlock();
         }
 
         void _checkForGroups() {
@@ -315,7 +297,6 @@ namespace rofi::leadership {
                     if ( address == _myAddr ) {
                         continue;
                     }
-                    // address.zone = 0;
                     _awaited = address;
                     if ( !_sendMessage( address, _composeMessage( InvitationMessage::ARE_YOU_COORDINATOR ) ) ) {
                         continue;
@@ -508,7 +489,9 @@ namespace rofi::leadership {
             return;
         }
 
-        /** Turns off the node's invitation election functions, simulating a node failure. A second call makes the node restart. */
+        /** Turns off the node's invitation election functions, simulating a 
+         *  node failure. A second call makes the node restart. Should only be 
+         * used for debugging purposes. */
         void switchDown() {
             if ( _nodeStatus != InvitationStatus::DOWN ) {
                 _nodeStatus = InvitationStatus::DOWN;
