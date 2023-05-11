@@ -233,8 +233,7 @@ namespace rofi::leadership {
         void _onReadyMessage( const Ip6Addr& addr, PBuf packet ) {
             GroupNumber group = as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) );
             if ( _nodeStatus == InvitationStatus::REORGANIZATION && _groupNumber == group ) {
-                size_t offset = sizeof( InvitationMessage ) + sizeof( GroupNumber ); 
-                _getTask( ( void * ) packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) );
+                _getTask( static_cast< void* > ( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) ) );
                 _nodeStatus = InvitationStatus::NORMAL;
                 _sendMessage( addr, _composeMessage( InvitationMessage::READY_RES ) );
             }
@@ -251,7 +250,7 @@ namespace rofi::leadership {
             _up.emplace( _myAddr );
             _nodeStatus = InvitationStatus::REORGANIZATION;
             PBuf task = _calculateTask();
-            _getTask( ( void* ) task.payload() );
+            _getTask( static_cast< void* > ( task.payload() ) );
             _nodeStatus = InvitationStatus::NORMAL;
         }
 
@@ -277,6 +276,9 @@ namespace rofi::leadership {
             sleep( _timeout * 3 );
             _nodeStatus = InvitationStatus::REORGANIZATION;
             for ( const Ip6Addr& address : _up ) {
+                if ( address == _myAddr ) {
+                    continue;
+                }
                 _awaited = address;
                 _sendMessage( address, _composeReadyMessage() );
                 std::unique_lock< std::mutex > lock( _waitMutex );
@@ -287,6 +289,8 @@ namespace rofi::leadership {
                 }
                 lock.unlock();
             }
+            PBuf task = _calculateTask();
+            _getTask( static_cast< void* > ( task.payload() ) );
             _nodeStatus = InvitationStatus::NORMAL;
         }
 
