@@ -117,6 +117,7 @@ namespace rofi::leadership {
          * Only for debugging purposes.
         */
         void switchDown() {
+            // Might remove this.
             _down = !_down;
         }
     };

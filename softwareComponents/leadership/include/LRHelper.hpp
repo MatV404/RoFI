@@ -137,7 +137,7 @@ namespace rofi::net {
             } );
         }
 
-        virtual Ip6Addr address() const override { return Ip6Addr( "ff02::ee:da" ); }
+        virtual Ip6Addr address() const override { return Ip6Addr( "ff02::ea:ea" ); }
 
         virtual std::string name() const override { return "lr-helper"; }
 
