@@ -40,8 +40,8 @@ struct Ip6Addr : ip6_addr_t {
     }
 
     bool operator==( const Ip6Addr& o ) const {
-        return addr[0] == o.addr[0] && addr[1] == o.addr[1] && addr[2] == o.addr[2]
-                    && addr[3] == o.addr[3];
+        return addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] == o.addr[ 1 ]
+            && addr[ 2 ] == o.addr[ 2 ] && addr[ 3 ] == o.addr[ 3 ];
     }
 
     bool operator!=( const Ip6Addr& o ) const {
@@ -49,35 +49,11 @@ struct Ip6Addr : ip6_addr_t {
     }
 
     bool operator<( const Ip6Addr& o ) const {
-        if ( addr[ 0 ] < o.addr[ 0 ] ) {
-            return true;
-        }
-        if ( addr[ 0 ] > o.addr[ 0 ] ) {
-            return false;
-        }
-
-        if ( addr[ 1 ] < o.addr[ 1 ] ) {
-            return true;
-        }
-        if ( addr[ 1 ] > o.addr[ 1 ] ) {
-            return false;
-        }
-
-        if ( addr[ 2 ] < o.addr[ 2 ] ) {
-            return true;
-        }
-        if ( addr[ 2 ] > o.addr[ 2 ] ) {
-            return false;
-        }
-
-        if ( addr[ 3 ] < o.addr[ 3 ] ) {
-            return true;
-        }
-        if ( addr[ 3 ] > o.addr[ 3 ] ) {
-            return false;
-        }
-
-        return false;
+        return addr[ 0 ] < o.addr[ 0 ]
+            || ( addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] <  o.addr[ 1 ] )
+            || ( addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] == o.addr[ 1 ] && addr[ 2 ] < o.addr[ 2 ] )
+            || ( addr[ 0 ] == o.addr[ 0 ] && addr[ 1 ] == o.addr[ 1 ]
+                                          && addr[ 2 ] == o.addr[ 2 ] && addr[ 3 ] < o.addr[ 3 ] );
     }
 
     bool operator>( const Ip6Addr& o ) const {
@@ -107,7 +83,7 @@ struct Ip6Addr : ip6_addr_t {
 
 inline std::ostream& operator<<( std::ostream& o, const Ip6Addr& a ) {
     char buff[40] = { 0 };
-    ip6addr_ntoa_r( &a, buff, 40);
+    ip6addr_ntoa_r( &a, buff, 40 );
     o << buff;
     return o;
 }
