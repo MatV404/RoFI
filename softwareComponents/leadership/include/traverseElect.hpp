@@ -41,7 +41,7 @@ namespace rofi::net {
 
         std::map< Interface::Name, ChannelInfo > _channels;
         Interface::Name _parent = "rl0";
-        Interface::Name _next;
+        Interface::Name _next = "rl0";
         Interface::Name _connection;
 
         const Ip6Addr& _id;
@@ -230,6 +230,12 @@ namespace rofi::net {
                 _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
                 return true;
             }
+
+            if ( _next == interfaceName ) {
+                _confChanges.push_back( { ConfigAction::RESPOND, { interfaceName, Ip6Addr( "::" ), 0 } } );
+                return true;
+            }
+
             return false;
         }
 
@@ -394,7 +400,6 @@ namespace rofi::net {
             sendToken.identity = ( _sendType == TokenType::LEADER || _sendType == TokenType::CONNECT ) ? _leaderId : _tokenId;
             sendToken.phase = _currentPhase;
             sendToken.type = _sendType;
-
             auto packet = PBuf::allocate( sizeof( Token ) );
             as< Token >( packet.payload() ) = sendToken;
 

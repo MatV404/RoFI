@@ -184,30 +184,6 @@ namespace rofi::net {
             return true;
         }
 
-        void _printMessage( bool received, const std::string& interfaceName,
-                            MessageType type, Ip6Addr waveId ) {
-            if ( received ) {
-                std::cout << "Received on " << interfaceName;
-            } else {
-                std::cout << "Sending to " << interfaceName; 
-            }
-
-            if ( MessageType::ELECTION_MESSAGE == type ) {
-                std::cout << " Election Message ";
-            } 
-            else if ( MessageType::LEADER_MESSAGE == type ) {
-                std::cout << " Leader Message ";
-            } else if ( MessageType::INITIATE_MESSAGE == type ) {
-                std::cout << " Initiate Message ";
-            } else if ( MessageType::CONNECT_MESSAGE == type ) {
-                std::cout << " Connection Message ";
-            } else {
-                std::cout << " Followers Changed Message ";
-            }
-
-            std::cout << "with ID " << waveId << "\n";
-        }
-
         bool _disconnectActions( const Interface& interface ) {
             // For some reason, the disconnect interface event is triggered twice. This is a safeguard against 
             // restarting the same process twice.
@@ -271,7 +247,6 @@ namespace rofi::net {
             MessageType type = as< MessageType >( packet.payload() );
             Ip6Addr waveId = as< Ip6Addr >( packet.payload() + sizeof( MessageType ) );
 
-            _printMessage(true, interfaceName, type, waveId);
             switch ( type ) {
                 case MessageType::LEADER_MESSAGE:
                     return _onLeaderMessage( interfaceName, waveId );
@@ -321,10 +296,8 @@ namespace rofi::net {
             as< MessageType >( packet.payload() ) = _messageType;
             if ( _messageType == MessageType::ELECTION_MESSAGE || _messageType == MessageType::INITIATE_MESSAGE ) {
                 as< Ip6Addr >( packet.payload() + sizeof( MessageType ) ) = _currentWaveId;
-                _printMessage(false, interface.name(), _messageType, _currentWaveId);
             } else {
                 as< Ip6Addr >( packet.payload() + sizeof( MessageType ) ) = _leaderId;
-                _printMessage(false, interface.name(), _messageType, _leaderId);
             }
             
             fun( std::move( packet ) );
