@@ -127,13 +127,13 @@ namespace rofi::leadership {
             as< GroupNumber >( packet.payload() + sizeof( InvitationMessage ) ) = _groupNumber;
             auto* taskData = task.payload();
             auto* packetData = packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber );
+            
             for ( int i = 0; i <= task.size(); i++ ) {
                 *packetData = *taskData;
                 taskData++;
                 packetData++;
             }
 
-            int size = as< int >( packet.payload() + sizeof( InvitationMessage ) + sizeof( GroupNumber ) );
             return packet;
         }
 
