@@ -14,7 +14,7 @@ namespace rofi::leadership {
         const Ip6Addr& _myAddr;
         Ip6Addr _leader;
 
-        bool _down = false;
+        std::once_flag _startedFlag;
 
         unsigned int _timeJoined;
         unsigned int _minTimeJoined;
@@ -48,11 +48,18 @@ namespace rofi::leadership {
             _minTimeJoined = _timeJoined;
         }
 
-        void _periodic() {
+        void _periodic( int id ) {
+            // According to the original specification, nodes should
+            // wait a bit before they start sending messages. This follows
+            // that specification while also limiting the maximum time.
+            // Though it may be wise to remove this, as the algorithm is still
+            // better in performance than the invitation algorithm without it.
+            if ( id < 3 ) {
+                sleep( id );
+            } else {
+                sleep( 3 );
+            }
             while ( true ) {
-                if ( _down ) {
-                    continue;
-                }
                 if ( _leader == _myAddr ) {
                     for ( const Interface& interface : _net.interfaces() ) {
                         if ( interface.name() == "rl0" ) {
@@ -101,24 +108,16 @@ namespace rofi::leadership {
          * @param id Used for an arbitrary wait time as described in the original algorithm description.
         */
         void start( int id ) {
-            sleep( id ); // May not be necessary.
-            std::thread thread{ [ this ]() {
-                this->_periodic();
-            } };
-            thread.detach();
+            std::call_once( _startedFlag, [ this, id ](){
+                std::thread thread{ [ this, id ]() {
+                    this->_periodic( id );
+                } };
+                thread.detach();
+            });
         }
 
         const Ip6Addr& getLeader() {
             return _leader;
-        }
-
-        /**
-         * Used to simulate module failure. 
-         * Only for debugging purposes.
-        */
-        void switchDown() {
-            // Might remove this.
-            _down = !_down;
         }
     };
 }

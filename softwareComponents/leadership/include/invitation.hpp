@@ -18,7 +18,6 @@ namespace rofi::leadership {
     using namespace std::chrono_literals;
 
     enum InvitationStatus : char {
-        DOWN,
         ELECTION,
         NORMAL,
         REORGANIZATION,
@@ -60,7 +59,6 @@ namespace rofi::leadership {
         std::vector< Ip6Addr > _addresses;
         u16_t _port;
         Ip6Addr _awaited;
-        bool _started = false;
 
         udp_pcb* _pcb = nullptr;
         
@@ -347,7 +345,7 @@ namespace rofi::leadership {
                 if ( _nodeStatus == InvitationStatus::NORMAL && _coordinator == _myAddr ) {
                     _checkForGroups();
                 } 
-                if ( _nodeStatus != InvitationStatus::DOWN && _coordinator != _myAddr ) {
+                if ( _coordinator != _myAddr ) {
                     if ( _coordinatorContacted ) {
                         _coordinatorContacted = false;
                     } else {
@@ -375,15 +373,15 @@ namespace rofi::leadership {
                             std::function< PBuf () > calculateTask, 
                             std::function< void ( void* ) > getTask,
                             std::function< void () > stopWork,
-                            int timeout, int period ) 
+                            unsigned int timeout, unsigned int period ) 
         : _myAddr( myAddr), _coordinator( myAddr ), _awaited( myAddr ) {
             assert( id >= 0 && "ID must be non-negative!\n");
             _id = id;
             _nodeStatus = InvitationStatus::NOT_STARTED;
             _groupNumber.coordinatorId = _id;
             _groupNumber.sequenceNum = 0;
-            _timeout = ( timeout > 0 ) ? timeout : 3;
-            _period = ( period > 0 ) ? period : 1;
+            _timeout = timeout;
+            _period = period;
             _port = port;
             _calculateTask = calculateTask;
             _getTask = getTask;
@@ -449,7 +447,7 @@ namespace rofi::leadership {
         }
 
         void onMessage( const Ip6Addr addr, PBuf packet ) {
-            if ( _nodeStatus == InvitationStatus::DOWN || _nodeStatus == InvitationStatus::NOT_STARTED ) {
+            if (  _nodeStatus == InvitationStatus::NOT_STARTED ) {
                 return;
             }
 
@@ -491,18 +489,6 @@ namespace rofi::leadership {
                 }
             }
             return;
-        }
-
-        /** Turns off the node's invitation election functions, simulating a 
-         *  node failure. A second call makes the node restart. Should only be 
-         * used for debugging purposes. */
-        void switchDown() {
-            if ( _nodeStatus != InvitationStatus::DOWN ) {
-                _nodeStatus = InvitationStatus::DOWN;
-                _stopWork();
-            } else {
-                _recovery();
-            }
         }
     };
 }
