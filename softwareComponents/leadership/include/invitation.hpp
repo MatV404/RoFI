@@ -358,6 +358,8 @@ namespace rofi::leadership {
     public:
         /**
          * The Invitation Election class constructor.
+         * IMPORTANT: Invitation Election requires an underlying routing protocol
+         * to be active on all modules!
          * @param id The RoFI module's ID, unique to the configuration.
          * @param myAddr the address used for identification by the module. Should be unique and contained in addresses.
          * @param port The port for the underlying networking service used for the election.
@@ -396,7 +398,14 @@ namespace rofi::leadership {
                             std::function< void () > stopWork )
         : InvitationElection( id, myAddr, port, addresses, calculateTask, getTask, stopWork, 1, 3 ){};
 
+        /** Sets up the necessary network environment for the algorithm.
+         * Remember to call setUp() before start().
+        */
         bool setUp() {
+            if ( _nodeStatus != InvitationStatus::NOT_STARTED ) {
+                return;
+            }
+
             _pcb = udp_new();
             if ( _pcb == nullptr ) {
                 return false;
@@ -419,10 +428,14 @@ namespace rofi::leadership {
             return true;
         }
 
+        /** Starts the algorithm execution for the given module.
+         * Remember to call setUp() before calling start().
+        */
         void start() {
             if ( _nodeStatus != InvitationStatus::NOT_STARTED ) {
                 return;
             }
+            
             _recovery();
             std::thread thread{ [ this ]() {
                 this->_periodicCheck();
