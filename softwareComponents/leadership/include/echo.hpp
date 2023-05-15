@@ -103,7 +103,6 @@ namespace rofi::net {
                     _messageType = MessageType::LEADER_MESSAGE;
                     return true;
                 }
-
                 _messageType = MessageType::ELECTION_MESSAGE;
                 _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                 return true;
@@ -113,7 +112,7 @@ namespace rofi::net {
             if ( _messageType == MessageType::LEADER_MESSAGE ) {
                 _electionChangeCallback( _leaderId, ElectionStatus::UNDECIDED );
             }
-
+            
             _currentWaveId = waveId;
             _parent = interfaceName;
             _resetReceived();
@@ -143,6 +142,11 @@ namespace rofi::net {
             _connections[ interfaceName ].initiateReceived = true;
             if ( _managedInterfaces.size() == rofi::hal::RoFI::getLocalRoFI().getDescriptor().connectorCount + 1 && _allReceived( false ) ) {
                 _messageType = MessageType::ELECTION_MESSAGE;
+                _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
+                return true;
+            }
+
+            if ( _messageType != MessageType::INITIATE_MESSAGE ) {
                 _confChanges.push_back( { ConfigAction::RESPOND, { "", Ip6Addr( "::" ), 0 } } );
                 return true;
             }
