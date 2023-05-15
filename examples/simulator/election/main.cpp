@@ -16,6 +16,8 @@ int main( void ) {
      * testTolerant - true to test Invitation, false to test LR
      * testProtocol - true to test Echo, false to test Traverse
     */
+    // For the tolerant algorithms, type 'lead' or 'leader' into the command line interface 
+    // once the algorithm is setup, it should print the current leader address for the module
     // testTolerant( true );
     testProtocol( true );
     return 0;
