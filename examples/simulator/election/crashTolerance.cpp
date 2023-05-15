@@ -99,29 +99,6 @@ void testInvitation( NetworkManager& netmg, int id, Ip6Addr& addr ) {
     election.setUp();
     election.start();
 
-    if ( NODE_STATE_CHANGE_CHANCE != -1 ) {
-        while ( true ) {
-            int result = distr(gen);
-            if ( result <= NODE_STATE_CHANGE_CHANCE ) {
-                std::cout << "Node shutting down\n";
-                election.switchDown();
-            }
-
-            if ( !workStop && election.getLeader().second ) {
-                std::cout << "Node " << id << " is currently performing work under leader " << election.getLeader().first << "\n";
-                std::cout << netmg.routingTable();
-            }
-
-            if ( workStop ) {
-                if ( election.getLeader().second ) {
-                    workStop = false;
-                }
-            }
-
-            sleep( 3 );
-        }
-    }
-
     NetworkManagerCli netcli( netmg );
     std::string line;
     while ( std::getline( std::cin, line ) ) {
@@ -156,19 +133,8 @@ void testLR( NetworkManager& net, int id, Ip6Addr& addr ) {
 
     LRElect election( net, addr, 5 );
     election.start( id );
-
-    if ( NODE_STATE_CHANGE_CHANCE != -1 ) {
-        while ( true ) {
-            int result = distr(gen);
-            if ( result <= NODE_STATE_CHANGE_CHANCE ) {
-                std::cout << "Node changing states.\n";
-                election.switchDown();
-            }
-
-            sleep( 3 );
-        }
-    }
-
+    election.start( id );
+    
     NetworkManagerCli netcli( net );
     std::string line;
     while ( std::getline( std::cin, line ) ) {

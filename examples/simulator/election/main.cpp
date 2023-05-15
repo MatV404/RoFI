@@ -12,7 +12,7 @@
 #include "reactive.cpp"
 
 int main( void ) {
-    testTolerant( true );
-    // testProtocol( false );
+    // testTolerant( true );
+    testProtocol( true );
     return 0;
 }
