@@ -400,10 +400,11 @@ namespace rofi::leadership {
 
         /** Sets up the necessary network environment for the algorithm.
          * Remember to call setUp() before start().
+         * @return true if all went well, false is something went wrong.
         */
         bool setUp() {
             if ( _nodeStatus != InvitationStatus::NOT_STARTED ) {
-                return;
+                return false;
             }
 
             _pcb = udp_new();
@@ -435,7 +436,7 @@ namespace rofi::leadership {
             if ( _nodeStatus != InvitationStatus::NOT_STARTED ) {
                 return;
             }
-            
+
             _recovery();
             std::thread thread{ [ this ]() {
                 this->_periodicCheck();
