@@ -89,9 +89,6 @@ namespace rofi::net {
             _connections[ interfaceName ].receivedElection = true;
 
             if ( waveId == _currentWaveId ) {
-                // if ( !_allElectionReceived() ) {
-                //     return false;
-                // }
                 if ( !_allReceived( true ) ) {
                     return false;
                 }

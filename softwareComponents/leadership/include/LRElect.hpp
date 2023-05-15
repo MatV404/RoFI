@@ -23,6 +23,7 @@ namespace rofi::leadership {
 
         bool _leaderContact = false;
 
+        /** Called by the helper protocol to pass on a message. */
         void _received( Ip6Addr addr, unsigned int logTime ) {
             if ( ( logTime < _minTimeJoined ) 
                 || ( logTime == _minTimeJoined && addr < _leader ) ) {
@@ -36,6 +37,7 @@ namespace rofi::leadership {
             }
         }
 
+        /** Called by the helper protocol when a connector event occurs. */
         void _increaseTimeJoined() {
             _timeJoined++;
             if ( _leader == _myAddr) {
